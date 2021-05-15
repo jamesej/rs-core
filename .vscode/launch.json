@@ -1,14 +1,10 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
             "name": "Deno: Test",
             "request": "launch",
             "type": "pwa-node",
-            "cwd": "${workspaceFolder}",
             "runtimeExecutable": "deno",
             "runtimeArgs": [
                 "test",
@@ -16,6 +12,20 @@
                 "--inspect-brk",
                 "--allow-all",
                 "test/"
+            ],
+            "attachSimplePort": 9229
+        },
+        {
+            "name": "Deno: Test this file",
+            "request": "launch",
+            "type": "pwa-node",
+            "runtimeExecutable": "deno",
+            "runtimeArgs": [
+                "test",
+                "--unstable",
+                "--inspect-brk",
+                "--allow-all",
+                "${file}"
             ],
             "attachSimplePort": 9229
         }

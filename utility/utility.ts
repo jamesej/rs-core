@@ -123,3 +123,41 @@ export function matchRange(code: number, range: string) {
         return rangeParts[0] === code;
     }
 }
+
+export function last<T>(arr: ArrayLike<T>) {
+    return arr[arr.length - 1];
+}
+
+export function arrayEqual<T>(arr0: ArrayLike<T>, arr1: ArrayLike<T>): boolean {
+    if (arr0.length !== arr1.length) return false;
+    for (let i = 0; i < arr0.length; i++) {
+        if (arr0[i] !== arr1[i]) return false;
+    }
+    return true;
+}
+
+export function getProp(object: any, path: string[] | string, defaultVal?: any): any {
+    if (!Array.isArray(path)) path = path.toString().match(/[^.[\]]+/g) || [];
+  
+    if (!path.length) {
+      return object === undefined ? defaultVal : object
+    }
+  
+    return getProp(object[path.shift() as string], path, defaultVal)
+}
+
+export const setProp = (obj: any, path: string[] | string, value: any): any => {
+    if (Object(obj) !== obj) return obj; // When obj is not an object
+    // If not yet an array, get the keys from the string-path
+    if (!Array.isArray(path)) path = path.toString().match(/[^.[\]]+/g) || []; 
+    path.slice(0,-1).reduce((a, c, i) => // Iterate all of them except the last one
+         Object(a[c]) === a[c] // Does the key exist and is its value an object?
+             // Yes: then follow that path
+             ? a[c] 
+             // No: create the key. Is the next key a potential array-index?
+             : a[c] = /^\+?(0|[1-9]\d*)$/.test(path[i+1])
+                   ? [] // Yes: assign a new array object
+                   : {}, // No: assign a new plain object
+         obj)[path[path.length-1]] = value; // Finally assign the value to the last key
+    return obj; // Return the top-level object to allow chaining
+};

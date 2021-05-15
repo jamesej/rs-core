@@ -14,7 +14,7 @@ export interface LocalFileSystemProps {
     extensions?: string[];
 }
 
-export class LocalFileAdapter implements IFileAdapter {
+export default class LocalFileAdapter implements IFileAdapter {
     extensions: string[];
     rootPath: string;
     basePath: string;
