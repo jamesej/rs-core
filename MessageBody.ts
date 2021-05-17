@@ -2,6 +2,9 @@ import { isJson, isText } from "./mimeType.ts";
 import { decodeURIComponentAndPlus } from "./utility/utility.ts";
 import { ab2b64, ab2str, str2ab } from "./utility/arrayBufferUtility.ts";
 import { stripBom } from "https://deno.land/x/string/mod.ts";
+import { ServerRequest } from 'https://deno.land/std@0.96.0/http/server.ts';
+import { readerToStream } from "./streams/streams.ts";
+import { readerFromStreamReader } from "https://deno.land/std@0.95.0/io/streams.ts"
 
 export class MessageBody {
     statusCode: number = 0;
@@ -119,6 +122,12 @@ export class MessageBody {
         return new Response(this.data).body;
     }
 
+    asServerResponseBody(): Uint8Array | Deno.Reader | undefined {
+        if (this.data === null) return undefined;
+        if (this.data instanceof ReadableStream) return readerFromStreamReader(this.data.getReader());
+        return new Uint8Array(this.data);
+    }
+
     async asAny(): Promise<any> {
         if (this.data === null) {
             return null;
@@ -159,12 +168,12 @@ export class MessageBody {
     //     });
     // }
 
-    static fromRequest(req: Request): MessageBody | null {
+    static fromServerRequest(req: ServerRequest): MessageBody | null {
         const contentLength = req.headers.get('content-length');
         const size = contentLength != null ? parseInt(contentLength) : NaN;
         const contentType = req.headers.get('content-type');
         return contentType && req.body
-            ? new MessageBody(req.body, contentType, isNaN(size) ? undefined : size)
+            ? new MessageBody(readerToStream(req.body), contentType, isNaN(size) ? undefined : size)
             : null;
     }
 

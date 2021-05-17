@@ -1,0 +1,1 @@
+export type PipelineSpec = (string | object | PipelineSpec)[];

@@ -1,3 +1,471 @@
+import { Url } from "./Url.ts";
+import { MessageBody } from "./MessageBody.ts";
+import { CookieOptions } from "./CookieOptions.ts";
+import { resolvePathPatternWithUrl } from "./PathPattern.ts";
+import { isJson } from "./mimeType.ts";
+import parseRange from "https://cdn.skypack.dev/range-parser?dts";
+import { ab2str, str2ab } from "./utility/arrayBufferUtility.ts";
+import { getProp } from "./utility/utility.ts";
+import { ServerRequest, Response as ServerResponse } from 'https://deno.land/std@0.96.0/http/server.ts';
+
+const sendHeaders: string[] = [
+    "accept-ranges",
+    "access-control-allow-origin",
+    "access-control-allow-credentials",
+    "access-control-expose-headers",
+    "access-control-max-age",
+    "access-control-allow-methods",
+    "access-control-allow-headers",
+    "cache-control",
+    "content-disposition",
+    "content-encoding",
+    "content-language",
+    //"content-length", set automatically, breaks response if set
+    "content-location",
+    "content-md5",
+    "content-range",
+    "content-security-policy", // content-type is set from mime-type
+    "date",
+    "delta-base",
+    "etag",
+    "expires",
+    "im",
+    "last-modified",
+    "link",
+    "location",
+    "p3p",
+    "pragma",
+    "proxy-authenticate",
+    "public-key-pins",
+    "refresh",
+    "retry-after",
+    "server",
+    "set-cookie",
+    "strict-transport-security",
+    "timing-allow-origin",
+    "trailer",
+    "transfer-encoding",
+    "tk",
+    "upgrade",
+    "vary",
+    "via",
+    "warning",
+    "www-authenticate",
+    "x-content-type-options",
+    "x-correlation-id",
+    "x-frame-options",
+    "x-powered-by",
+    "x-request-id",
+    "x-restspace-service",
+    "x-ua-compatible",
+    "x-xss-protection"
+];
+
 export class Message {
+    cookies: { [key: string]: string } = {};
+    headers: { [key: string]: string | string[] } = {};
+    context: { [key: string]: any } = {};
+    depth: number = 0;
+    conditionalMode: boolean = false;
+    authenticated: boolean = false;
+    originator: string = '';
+    internalPrivilege = false;
+    url: Url;
+    protected _status: number = 0;
+    protected uninitiatedDataCopies: MessageBody[] = [];
     
+    private static pullName = new RegExp(/([; ]name=["'])(.*?)(["'])/);
+
+    get status(): number {
+        return this.data && this.data.statusCode > 0 ? this.data.statusCode : this._status;
+    }
+    set status(code: number) {
+        this._status = code;
+    }
+
+    get ok(): boolean {
+        return this.status < 399;
+    }
+
+    get isEditorRequest(): boolean {
+        const modeHdr = this.getHeader('X-Restspace-Request-Mode');
+        return !!modeHdr && (modeHdr === 'editor');
+    }
+
+    get name(): string {
+        const cd = this.getHeader('Content-Disposition');
+        if (!cd) return '';
+        const match = Message.pullName.exec(cd);
+        return match && match[2] ? match[2] : '';
+    }
+    set name(name: string) {
+        let cd = this.getHeader('Content-Disposition') as string;
+        if (cd) {
+            this.setHeader('Content-Disposition',
+                cd.replace(Message.pullName, `$1${name}$3`));
+        } else {
+            this.setHeader('Content-Disposition', `form-data; name="${name}"`);
+        }
+    }
+
+    constructor(url: Url | string, public method: string = "GET", headers?: Headers | { [key:string]: string | string[] }, public data?: MessageBody) {
+        this.url = (typeof url === 'string') ? new Url(url) : url;
+        if (headers) {
+            if (headers instanceof Headers) {
+                for (let [key, val] of headers.entries()) this.headers[key] = val;
+            } else {
+                this.headers = headers;
+            }
+        }
+        const cookieStrings = ((this.headers['cookie'] as string) || '').split(';') ;
+        this.cookies = cookieStrings ? cookieStrings.reduce((res, cookieString) => {
+            const parts = cookieString.trim().split('=');
+            res[parts[0]] = parts[1];
+            return res;
+        }, {} as { [ key: string]: string }) : {};
+    }
+
+    copy(): Message {
+        const msg = new Message(this.url.copy(), this.method, { ...this.headers }, this.data);
+        msg.depth = this.depth;
+        msg.conditionalMode = false;
+        msg.authenticated = this.authenticated;
+        return msg.setStatus(this.status);
+    }
+
+    /** requires a call to initiateDataCopies to start streams in copies */
+    copyWithData(): Message {
+        const newMsg = this.copy();
+        newMsg.conditionalMode = this.conditionalMode;
+        newMsg.data = this.data ? this.data.copy() : undefined;
+        if (newMsg.data) this.uninitiatedDataCopies.push(newMsg.data);
+        return newMsg;
+    }
+
+    copyToGet(url: string): Message {
+        const copyMsg = this.copy();
+        copyMsg.method = "GET";
+        copyMsg.url = new Url(url);
+        return copyMsg;
+    }
+
+    initiateDataCopies() {
+        // not needed with Streams
+    }
+
+    hasData(): boolean {
+        return !!this.data && !!this.data.data;
+    }
+
+    headerCase(header: string): string {
+        return header.split('-').map(part => part.substr(0, 1).toUpperCase() + part.substr(1).toLowerCase()).join('-');
+    }
+
+    private setHeaders(headers: Headers) {
+        Object.entries(this.headers)
+            .flatMap(([k, vs]) => Array.isArray(vs) ? vs.map(v => [k, v]) : [[k, vs]]) // expand multiple identical headers
+            .filter(([k, v]) => sendHeaders.indexOf(k.toLowerCase()) >= 0
+                && (k.toLowerCase() !== 'content-disposition' || !v.startsWith('form-data')))
+            .forEach(([k, v]) => headers.set(this.headerCase(k), v));
+        return headers;
+    }
+
+    toResponse() {
+        const res = new Response(this.data?.data || undefined,
+            {
+                status: this.status || 200
+            });
+        this.setHeaders(res.headers);
+        if (this.data) {
+            res.headers.set('content-type', this.data.mimeType || 'text/plain');
+            //if (this.data.size) res.setHeader('Content-Length', this.data.size.toString());
+        } else {
+            res.headers.set('content-type', 'text/plain');
+        }
+        res.headers.set('X-Powered-By', 'Restspace');
+        return res;
+    }
+    toServerResponse() {
+        const res: ServerResponse = {
+            status: this.status || 200,
+            headers: this.setHeaders(new Headers()),
+            body: this.data ? this.data.asServerResponseBody() : undefined
+        }
+        return res;
+    }
+
+    setStatus(status: number, message?: string): Message {
+        this.status = status;
+        if (message) this.data = new MessageBody(str2ab(message), 'text/plain');
+        return this;
+    }
+
+    getHeader(header: string): string {
+        const hdr = this.headers[header.toLowerCase()];
+        return Array.isArray(hdr) ? hdr[0] : hdr;
+    }
+
+    setHeader(header: string, value: string) {
+        this.headers[header.toLowerCase()] = value; 
+        return this;
+    }
+
+    removeHeader(header: string) {
+        delete this.headers[header.toLowerCase()];
+    }
+
+    getRequestRange(size: number) {
+        const ranges = this.getHeader('Range');
+        if (!ranges) return null;
+        const parsed = parseRange(size, ranges, { combine: true });
+        return parsed;
+    }
+
+    setRange(type: string, size: number, range?: { start: number, end: number }) {
+        this.setHeader('Content-Range', type + ' ' + (range ? range.start + '-' + range.end : '*') + '/' + size);
+        if (range && this.data) this.data.size = range.end - range.start + 1;
+        return this;
+    }
+
+    getCookie(name: string): string | undefined {
+        return this.cookies[name] === undefined ? undefined : decodeURIComponent(this.cookies[name]);
+    }
+
+    setCookie(name: string, value: string, options: CookieOptions) {
+        let currSetCookie: string[] = this.headers['Set-Cookie'] as string[] || [];
+        currSetCookie = currSetCookie.filter((sc) => !sc.startsWith(name + '='));
+        this.headers['Set-Cookie'] = [ ...currSetCookie, `${name}=${encodeURIComponent(value)}${options}` ];
+        return this;
+    }
+
+    deleteCookie(name: string) {
+        this.setCookie(name, '', new CookieOptions({ expires: new Date(2000, 0, 1) }));
+    }
+
+    setData(data: string | ArrayBuffer | ReadableStream, mimeType: string) {
+        let bodyData;
+        if (typeof data === 'string') {
+            bodyData = new MessageBody(str2ab(data), mimeType);
+        } else {
+            bodyData = new MessageBody(data, mimeType);
+        }
+        this.data = bodyData;
+        this._status = 0;
+        this.conditionalMode = false;
+        return this;
+    }
+
+    setText(data: string) {
+        this.data = new MessageBody(str2ab(data), 'text/plain');
+        this._status = 0;
+        this.conditionalMode = false;
+        return this;
+    }
+
+    setDataJson(value: any) {
+        this._status = 0;
+        this.conditionalMode = false;
+        return this.setData(JSON.stringify(value), 'application/json');
+    }
+
+    setMethod(httpMethod: string) {
+        this.method = httpMethod;
+        return this;
+    }
+
+    setUrl(url: Url | string) {
+        if (typeof url === 'string') {
+            this.url = new Url(url);
+        } else {
+            this.url = url;
+        }
+        return this;
+    }
+
+    setName(name: string) {
+        this.name = name;
+        return this;
+    }
+
+    enterConditionalMode() {
+        if (!this.ok) {
+            const errorMsg = this.data && (this.data.data instanceof ArrayBuffer) ? ab2str(this.data.data) : '';
+            this.conditionalMode = true;
+            this.setDataJson({ _errorStatus: this.status, _errorMessage: errorMsg }).setStatus(200);
+        }
+        return this;
+    }
+
+    exitConditionalMode() {
+        if (this?.data?.mimeType === 'application/json' && this?.data.data instanceof ArrayBuffer) {
+            const err = JSON.parse(ab2str(this.data.data));
+            if (err['_errorStatus'] !== undefined && err['_errorMessage'] !== undefined) {
+                this.setStatus(err['_errorStatus'] as number, err['_errorMessage'] as string);
+            }
+        }
+        return this;
+    }
+
+    callDown() {
+        this.depth++;
+        return this;
+    }
+
+    callUp() {
+        this.depth--;
+        return this;
+    }
+
+    async requestExternal(): Promise<Message> {
+        let resp: Response;
+
+        const headers = new Headers();
+        for (let [key, val] of Object.entries(this.headers)) {
+            if (Array.isArray(val)) {
+                val.forEach(v => headers.set(key, v));
+            } else {
+                headers.set(key, val);
+            }
+        }
+        headers.set('content-type', this.data?.mimeType || 'text/plain');
+        if (this.data?.size) {
+            headers.set('content-length', this.data.size.toString());
+        }
+
+        try {
+            const body = this.method !== 'GET' ? this.data?.data : null;
+            resp = await fetch(this.url.toString(), {
+                method: this.method,
+                headers,
+                body
+            });
+        } catch (err) {
+            console.error(`Request failed: ${err}`);
+            return this.setStatus(500, 'request fail');
+        }
+        const msgOut = Message.fromResponse(resp);
+        msgOut.method = this.method; // slightly pointless
+        return msgOut;
+    }
+
+    divertToPattern(pathPattern: string) {
+        this.url = new Url(resolvePathPatternWithUrl(pathPattern, this.url, undefined, this.name) as string);
+        return this;
+    }
+
+    async divertToObjectPattern(pathPattern: string, url: Url): Promise<Message | Message[]> {
+        let obj = {};
+        // include object if there's data, it's json and it includes an object macro
+        if (this.data && this.data.mimeType && isJson(this.data.mimeType) && pathPattern.indexOf('${') >= 0) {
+            obj = await this.data.asJson();
+        }
+        const paths = resolvePathPatternWithUrl(pathPattern, url, obj, this.name);
+        if (Array.isArray(paths)) {
+            return paths.map(path => this.copy().setUrl(new Url(path)));
+        } else {
+            return this.setUrl(new Url(paths));
+        }
+    }
+
+    async divertToSpec(spec: string | string[], defaultMethod?: string, effectiveUrl?: Url, inheritMethod?: string, headers?: object): Promise<Message | Message[]> {
+        if (Array.isArray(spec)) {
+            const unflatMsgs = await Promise.all(spec.flatMap(stg => this.divertToSpec(stg, defaultMethod, effectiveUrl, inheritMethod, headers)));
+            return unflatMsgs.flat(1) as Message[];
+        }
+        let obj = {};
+        const hasData = (mimeType: string) => isJson(mimeType) || mimeType === 'application/x-www-form-urlencoded';
+        // include object if there's data, it's json and it includes an object macro
+        if (this.data && this.data.mimeType && hasData(this.data.mimeType) && spec.indexOf('${') >= 0) {
+            obj = await this.data.asJson();
+        }
+        const msgs = Message.fromSpec(spec, effectiveUrl || this.url, obj, defaultMethod, this.name, inheritMethod, headers);
+        (Array.isArray(msgs) ? msgs : [ msgs ]).forEach(msg => {
+            msg.data = msg.data || this.data;
+            msg.headers = { ...this.headers };
+            msg.setStatus(this.status);
+        });
+        return msgs;
+    }
+
+    redirect(url: Url, isTemporary?: boolean) {
+        this.setStatus(isTemporary ? 302 : 301);
+        this.setHeader('Location', url.toString());
+        return this;
+    }
+
+    static fromServerRequest(req: ServerRequest) {
+        const url = new Url(req.url);
+        return new Message(url, req.method, req.headers, MessageBody.fromServerRequest(req) || undefined);
+    }
+
+    static fromResponse(resp: Response) {
+        const msg = new Message(resp.url, "", resp.headers,
+            resp.body
+                ? new MessageBody(resp.body, resp.headers.get('content-type') || 'text/plain')
+                : undefined);
+        msg.setStatus(resp.status);
+        return msg;
+    }
+
+    private static isUrl(url: string) {
+        return Url.urlRegex.test(url) || (url.startsWith('$') && !url.startsWith('$this'));
+    }
+
+
+    /** A request spec is "[<method>] [<post data property>] <url>" */
+    static fromSpec(spec: string, referenceUrl?: Url, data?: any, defaultMethod?: string, name?: string, inheritMethod?: string, headers?: object) {
+        const parts = spec.trim().split(' ');
+        let method = defaultMethod || 'GET';
+        let url = '';
+        let postData: any = null;
+        if (Message.isUrl(parts[0])) {
+            url = spec;
+        } else if (parts.length > 1 && Message.isUrl(parts[1])) {
+            // $METHOD indicates use the method inherited from an outer message
+            method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0];
+            url = parts.slice(1).join(' ');
+        } else if (parts.length > 2 && Message.isUrl(parts[2]) && data) {
+            method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0];
+            const propertyPath = parts[1];
+            if (propertyPath === '$this') {
+                postData = data;
+            } else {
+                postData = getProp(data, propertyPath);
+            }
+            url = parts.slice(2).join(' ');
+        } else {
+            console.error('bad req spec: ' + spec);
+            throw new Error('Bad request spec');
+        }
+        if (referenceUrl || data) {
+            const refUrl = referenceUrl || new Url('/');
+            const urls = resolvePathPatternWithUrl(url, refUrl, data, name);
+            if (Array.isArray(urls)) {
+                return urls.map((url) => new Message(new Url(url), method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined));
+            }
+            url = urls;
+        }
+        return new Message(new Url(url), method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined);
+    }
+
+    static async join(...msgs: Message[]): Promise<Message | null> {
+        if (msgs.length === 0) return null;
+        if (msgs.length === 1) return msgs[0];
+
+        const joined = msgs[0].copy();
+        const msgUrlsAreSame = msgs.every((msg: Message) => (msg.url || '').toString() === (msgs[0].url || '').toString());
+        if (!msgUrlsAreSame) return null;
+        
+        joined.data = MessageBody.fromObject(await Promise.all(msgs.map(async msg => {
+            let dataObj: any  = {};
+            try {
+                dataObj = msg.data ? await msg.data.asJson() : null;
+            } catch { }
+            return dataObj;
+        })));
+        joined.status = Math.max(...msgs.map(m => m.status));
+        joined.url = msgs[0].url;
+
+        return joined;
+    }
 }
