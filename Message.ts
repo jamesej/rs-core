@@ -6,7 +6,7 @@ import { isJson } from "./mimeType.ts";
 import parseRange from "https://cdn.skypack.dev/range-parser?dts";
 import { ab2str, str2ab } from "./utility/arrayBufferUtility.ts";
 import { getProp } from "./utility/utility.ts";
-import { ServerRequest, Response as ServerResponse } from 'https://deno.land/std@0.96.0/http/server.ts';
+import { ServerRequest, Response as ServerResponse } from 'std/http/server.ts';
 
 const sendHeaders: string[] = [
     "accept-ranges",
@@ -398,6 +398,11 @@ export class Message {
         return new Message(url, req.method, req.headers, MessageBody.fromServerRequest(req) || undefined);
     }
 
+    static fromRequest(req: Request) {
+        const url = new Url(req.url);
+        return new Message(url, req.method, req.headers, MessageBody.fromRequest(req) || undefined);
+    }
+ 
     static fromResponse(resp: Response) {
         const msg = new Message(resp.url, "", resp.headers,
             resp.body

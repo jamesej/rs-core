@@ -2,10 +2,10 @@ import { IFileAdapter } from "./IFileAdapter.ts";
 import { MessageBody } from "../MessageBody.ts";
 import { ItemMetadata } from "../ItemMetadata.ts";
 import { slashTrim } from "../utility/utility.ts";
-import * as path from "https://deno.land/std@0.95.0/path/mod.ts";
-import { ensureDir } from "https://deno.land/std@0.95.0/fs/mod.ts"
+import * as path from "std/path/mod.ts";
+import { ensureDir } from "std/fs/mod.ts"
 import { readFileStream, toBlockChunks, writeFileStream } from "../streams/streams.ts";
-import { readableStreamFromIterable } from "https://deno.land/std@0.95.0/io/streams.ts";
+import { readableStreamFromIterable } from "std/io/streams.ts";
 import { getType } from "../mimeType.ts";
 
 export interface LocalFileSystemProps {

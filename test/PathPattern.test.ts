@@ -1,4 +1,4 @@
-import { assertEquals, assert, equal } from "https://deno.land/std@0.95.0/testing/asserts.ts";
+import { assertEquals, assert, equal } from "std/testing/asserts.ts";
 import { resolvePathPatternWithObject, resolvePathPattern } from '../PathPattern.ts';
 
 Deno.test('matches a single path el', function () {

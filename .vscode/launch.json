@@ -13,7 +13,8 @@
                 "--allow-all",
                 "test/"
             ],
-            "attachSimplePort": 9229
+            "attachSimplePort": 9229,
+            "console": "integratedTerminal"
         },
         {
             "name": "Deno: Test this file",
@@ -27,7 +28,8 @@
                 "--allow-all",
                 "${file}"
             ],
-            "attachSimplePort": 9229
+            "attachSimplePort": 9229,
+            "console": "integratedTerminal"
         }
     ]
 }
