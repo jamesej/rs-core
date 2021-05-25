@@ -1,5 +1,8 @@
 export interface IServiceConfig {
     name: string;
+    source: string;
     basePath: string;
-    apis: string[];
+    adapterSource?: string;
+    infraName?: string;
+    adapterConfig?: unknown;
 }

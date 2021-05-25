@@ -20,7 +20,7 @@ export class MessageBody {
         this._size = newSize;
     }
 
-    constructor(public data: ArrayBuffer | ReadableStream, public mimeType: string, size?: number, public dateModified?: Date, public filename?: string) {
+    constructor(public data: ArrayBuffer | ReadableStream | null, public mimeType: string, size?: number, public dateModified?: Date, public filename?: string) {
     }
 
     copy(): MessageBody {
