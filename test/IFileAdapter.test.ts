@@ -1,7 +1,6 @@
 import { assertEquals, assert } from "std/testing/asserts.ts";
 import { MessageBody } from '../MessageBody.ts';
 import { IFileAdapter } from '../adapter/IFileAdapter.ts';
-import LocalFileAdapter from '../adapter/LocalFileAdapter.ts';
 
 const testFileSpace = (adapter: IFileAdapter) => {
     const encoder = new TextEncoder();
@@ -69,7 +68,9 @@ const testFileSpace = (adapter: IFileAdapter) => {
     });
 };
 
+/*
 testFileSpace(new LocalFileAdapter("test", {
     rootPath: "C:\\Dev\\test",
     basePath: "fileAdapter"
 }));
+*/
