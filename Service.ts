@@ -5,13 +5,17 @@ import { PipelineSpec } from "./PipelineSpec.ts";
 import { Source } from "./Source.ts";
 import { Url } from "./Url.ts";
 
-export interface ServiceContext {
+export interface SimpleServiceContext {
     tenant: string;
     call: (msg: Message, source: Source) => Promise<Message>;
     runPipeline: (msg: Message, pipelineSpec: PipelineSpec, contextUrl?: Url, concurrencyLimit?: number) => Promise<Message>;
 }
 
-export type ServiceFunction = (msg: Message, context: ServiceContext, config: IServiceConfig, adapter?: IAdapter) => Promise<Message>;
+export interface ServiceContext<TAdapter extends IAdapter> extends SimpleServiceContext {
+    adapter: TAdapter;
+}
+
+export type ServiceFunction<T extends IAdapter = IAdapter> = (msg: Message, context: ServiceContext<T>, config: IServiceConfig) => Promise<Message>;
 
 export enum AuthorizationType {
     none, read, write, create
@@ -24,13 +28,27 @@ interface MethodFuncs {
     all?: ServiceFunction;
 }
 
-export class Service {
-    methodFuncs: { [ method: string ]: ServiceFunction } = {};
+export class Service<TAdapter extends IAdapter = IAdapter> {
+    methodFuncs: { [ method: string ]: ServiceFunction<TAdapter> } = {};
 
-    func: ServiceFunction = (msg: Message, context: ServiceContext, config: IServiceConfig, adapter?: IAdapter) => {
-        const methodFunc = this.methodFuncs[msg.method.toLowerCase()];
+    func: ServiceFunction<TAdapter> = (msg: Message, context: ServiceContext<TAdapter>, config: IServiceConfig) => {
+        const method = msg.method.toLowerCase();
+        if (msg.url.isDirectory) {
+            const dirFunc = this.methodFuncs[method + 'Directory'];
+            if (dirFunc) {
+                return dirFunc(msg, context, config);
+            }
+        }
+        const methodFunc = this.methodFuncs[method];
         if (methodFunc) return methodFunc(msg, context, config);
-        if (this.methodFuncs['all']) return this.methodFuncs['all'](msg, context, config, adapter);
+        // default put is post with no returned body
+        if (method === 'put' && this.methodFuncs['post']) {
+            return this.methodFuncs['post'](msg, context, config).then(msg => {
+                if (msg.data) msg.data.data = null;
+                return msg;
+            });
+        }
+        if (this.methodFuncs['all']) return this.methodFuncs['all'](msg, context, config);
         return Promise.resolve(msg.setStatus(404, 'Not found'));
     }
 
@@ -42,19 +60,39 @@ export class Service {
         }
     }
 
-    get(func: ServiceFunction) {
+    get(func: ServiceFunction<TAdapter>) {
         this.methodFuncs['get'] = func;
         return this;
     }
-    post(func: ServiceFunction) {
+    getDirectory(func: ServiceFunction<TAdapter>) {
+        this.methodFuncs['getDirectory'] = func;
+        return this;
+    }
+    post(func: ServiceFunction<TAdapter>) {
         this.methodFuncs['post'] = func;
         return this;
     }
-    put(func: ServiceFunction) {
+    postDirectory(func: ServiceFunction<TAdapter>) {
+        this.methodFuncs['postDirectory'] = func;
+        return this;
+    }
+    put(func: ServiceFunction<TAdapter>) {
         this.methodFuncs['put'] = func;
         return this;
     }
-    all(func: ServiceFunction) {
+    putDirectory(func: ServiceFunction<TAdapter>) {
+        this.methodFuncs['putDirectory'] = func;
+        return this;
+    }
+    delete(func: ServiceFunction<TAdapter>) {
+        this.methodFuncs['delete'] = func;
+        return this;
+    }
+    deleteDirectory(func: ServiceFunction<TAdapter>) {
+        this.methodFuncs['deleteDirectory'] = func;
+        return this;
+    }
+    all(func: ServiceFunction<TAdapter>) {
         this.methodFuncs['all'] = func;
         return this;
     }

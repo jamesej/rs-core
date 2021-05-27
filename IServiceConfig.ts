@@ -4,5 +4,5 @@ export interface IServiceConfig {
     basePath: string;
     adapterSource?: string;
     infraName?: string;
-    adapterConfig?: unknown;
+    adapterConfig?: Record<string, unknown>;
 }
