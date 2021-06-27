@@ -1,5 +1,5 @@
 {
     "scripts": {
-        "test": "deno test --unstable --allow-all test/"
+        "test": "deno test --unstable --allow-all test/ --import-map=importMap.json"
     }
 }

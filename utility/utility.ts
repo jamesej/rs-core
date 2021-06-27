@@ -1,3 +1,5 @@
+import * as path from "std/path/mod.ts"
+
 export function slashTrim(s: string): string {
     let start = 0;
     let end = s.length;
@@ -161,3 +163,5 @@ export const setProp = (obj: any, path: string[] | string, value: any): any => {
          obj)[path[path.length-1]] = value; // Finally assign the value to the last key
     return obj; // Return the top-level object to allow chaining
 };
+
+export const resolveIfPath = (urlPath: string) => urlPath.startsWith('.') ? path.resolve(urlPath) : urlPath;

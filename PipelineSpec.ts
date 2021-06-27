@@ -1,1 +1,1 @@
-export type PipelineSpec = (string | object | PipelineSpec)[];
+export type PipelineSpec = (string | Record<string, unknown> | PipelineSpec)[];

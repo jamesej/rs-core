@@ -1,4 +1,4 @@
-import { assertEquals, assert, equal } from "std/testing/asserts.ts";
+import { assertEquals } from "std/testing/asserts.ts";
 import { resolvePathPatternWithObject, resolvePathPattern } from '../PathPattern.ts';
 
 Deno.test('matches a single path el', function () {
@@ -37,13 +37,13 @@ Deno.test('matches a single prop correctly', function () {
 });
 Deno.test('matches a terminal array correctly', function() {
     const res = resolvePathPatternWithObject("a/b/${prop[]}", { prop: [ 'cde', 'fgh' ] }, [], '');
-    equal(res, [ 'a/b/cde', 'a/b/fgh' ]);
+    assertEquals(res, [ 'a/b/cde', 'a/b/fgh' ]);
 });
 Deno.test('matches a non-terminal array correctly', function() {
     const res = resolvePathPatternWithObject("a/b/${prop[].inner}", { prop: [ { q: 1, inner: 'xxx' }, { q: 2, inner: 'yyy' } ] }, [], '');
-    equal(res, [ 'a/b/xxx', 'a/b/yyy' ]);
+    assertEquals(res, [ 'a/b/xxx', 'a/b/yyy' ]);
 });
 Deno.test('multiplies by multiple array props', function () {
     const res = resolvePathPatternWithObject("a/b/${prop[]}/c/${prop2[]}", { prop: [ 'n', 'm' ], prop2: [ 'x', 'y' ] }, [], '');
-    equal(res, [ 'a/b/n/c/x', 'a/b/n/c/y', 'a/b/m/c/x', 'a/b/m/c/y' ]);
+    assertEquals(res, [ 'a/b/n/c/x', 'a/b/n/c/y', 'a/b/m/c/x', 'a/b/m/c/y' ]);
 });

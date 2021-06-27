@@ -1,8 +1,8 @@
 import { extension, lookup } from "https://deno.land/x/media_types/mod.ts";
 
-export const isJson = (mimeType: string) => mimeType && (mimeType.indexOf("/json") > 0 ||  mimeType.indexOf("+json") > 0 || mimeType === 'inode/directory');
-export const isText = (mimeType: string) => mimeType && (mimeType.startsWith("text/") || mimeType === 'application/javascript');
-export const isZip = (mimeType: string) => mimeType && (mimeType.startsWith("application/") && mimeType.includes('zip'));
+export const isJson = (mimeType: string | null | undefined) => !!mimeType && (mimeType.indexOf("/json") > 0 ||  mimeType.indexOf("+json") > 0 || mimeType === 'inode/directory');
+export const isText = (mimeType: string | null | undefined) => !!mimeType && (mimeType.startsWith("text/") || mimeType === 'application/javascript');
+export const isZip = (mimeType: string | null | undefined) => !!mimeType && (mimeType.startsWith("application/") && mimeType.includes('zip'));
 const multiExtensions: { [ mimeType: string]: string[] } = {
     'image/jpeg': [ 'jpg', 'jpeg' ]
 }

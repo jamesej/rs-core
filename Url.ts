@@ -7,12 +7,13 @@ export type QueryStringArgs = { [ key: string]: string | null };
  * for them
  */
 export class Url {
-    scheme: string = '';
-    domain: string = '';
-    fragment: string = '';
+    scheme = '';
+    domain = '';
+    fragment = '';
+    isRelative = false;
 
     get path(): string {
-        return '/' + this.pathElements.join('/') + (this.isDirectory && this.pathElements.length > 0 ? '/' : '');
+        return (this.isRelative ? '' : '/') + this.pathElements.join('/') + (this.isDirectory && this.pathElements.length > 0 ? '/' : '');
     }
     set path(val: string) {
         this.pathElements = slashTrim(val).split('/').filter(el => !!el);
@@ -52,7 +53,7 @@ export class Url {
         return (this.resourceParts.length > 1) ? last(this.resourceParts) : '';
     }
 
-    queryString: string = '';
+    queryString = '';
     get query(): QueryStringArgs {
         return this.queryString.split('&').filter(part => !!part).reduce((res, queryPart) => {
             const keyValue = queryPart.split('=');
@@ -117,13 +118,14 @@ export class Url {
         const urlParse = urlString.match(Url.urlRegex);
         if (!urlParse) throw new Error('bad url');
 
-        this.scheme = urlParse[3];
-        this.domain = urlParse[4];
-        this.path = urlParse[5];
+        this.scheme = urlParse[2];
+        this.domain = urlParse[3];
+        this.isRelative = (!this.domain && urlParse[1] !== '/');
+        this.path = urlParse[4];
         this._isDirectory = this.path.endsWith('/');
-        this.queryString = urlParse[6];
+        this.queryString = urlParse[5];
         this.queryString = this.queryString ? this.queryString.substr(1) : '';
-        this.fragment = urlParse[7];
+        this.fragment = urlParse[6];
         this.fragment = this.fragment ? this.fragment.substr(1) : '';
     }
 
@@ -139,6 +141,8 @@ export class Url {
         newUrl.queryString = this.queryString;
         newUrl.basePathElementCount = this.basePathElementCount;
         newUrl.subPathElementCount = this.subPathElementCount;
+        newUrl.fragment = this.fragment;
+        newUrl.isRelative = this.isRelative;
 
         return newUrl;
     }
@@ -147,13 +151,13 @@ export class Url {
         return `${this.scheme || ''}${this.domain || ''}${this.path}${this.queryString ? '?' + this.queryString : ''}${this.fragment ? '#' + this.fragment : ''}`;
     }
 
-    static urlRegex = /^(((https?:\/\/)([^?#\/]+))|\/)([^?#]*)(\?[^#]*)?(#.*)?$/;
+    static urlRegex = /^((https?:\/\/)([^?#\/]+)|\/)?([^?#]*)(\?[^#]*)?(#.*)?$/;
 
     static fromPath(path: string): Url {
         return new Url(pathCombine('/', path));
     }
 
-    static fromPathPattern(pathPattern: string, url: Url, obj?: object) {
+    static fromPathPattern(pathPattern: string, url: Url, obj?: Record<string, unknown>) {
         return new Url(resolvePathPatternWithUrl(pathPattern, url, obj) as string);
     }
 }

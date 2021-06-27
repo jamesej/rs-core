@@ -108,7 +108,7 @@ export class Message {
         }
     }
 
-    constructor(url: Url | string, public method: string = "GET", headers?: Headers | { [key:string]: string | string[] }, public data?: MessageBody) {
+    constructor(url: Url | string, public tenant: string, public method: string = "GET", headers?: Headers | { [key:string]: string | string[] }, public data?: MessageBody) {
         this.url = (typeof url === 'string') ? new Url(url) : url;
         if (headers) {
             if (headers instanceof Headers) {
@@ -126,7 +126,7 @@ export class Message {
     }
 
     copy(): Message {
-        const msg = new Message(this.url.copy(), this.method, { ...this.headers }, this.data);
+        const msg = new Message(this.url.copy(), this.tenant, this.method, { ...this.headers }, this.data);
         msg.depth = this.depth;
         msg.conditionalMode = false;
         msg.authenticated = this.authenticated;
@@ -196,7 +196,7 @@ export class Message {
 
     setStatus(status: number, message?: string): Message {
         this.status = status;
-        if (message) this.data = new MessageBody(str2ab(message), 'text/plain');
+        if (message !== undefined) this.data = new MessageBody(str2ab(message), 'text/plain');
         return this;
     }
 
@@ -320,7 +320,7 @@ export class Message {
         let resp: Response;
 
         const headers = new Headers();
-        for (let [key, val] of Object.entries(this.headers)) {
+        for (const [key, val] of Object.entries(this.headers)) {
             if (Array.isArray(val)) {
                 val.forEach(v => headers.set(key, v));
             } else {
@@ -343,7 +343,7 @@ export class Message {
             console.error(`Request failed: ${err}`);
             return this.setStatus(500, 'request fail');
         }
-        const msgOut = Message.fromResponse(resp);
+        const msgOut = Message.fromResponse(resp, this.tenant);
         msgOut.method = this.method; // slightly pointless
         return msgOut;
     }
@@ -378,7 +378,7 @@ export class Message {
         if (this.data && this.data.mimeType && hasData(this.data.mimeType) && spec.indexOf('${') >= 0) {
             obj = await this.data.asJson();
         }
-        const msgs = Message.fromSpec(spec, effectiveUrl || this.url, obj, defaultMethod, this.name, inheritMethod, headers);
+        const msgs = Message.fromSpec(spec, this.tenant, effectiveUrl || this.url, obj, defaultMethod, this.name, inheritMethod, headers);
         (Array.isArray(msgs) ? msgs : [ msgs ]).forEach(msg => {
             msg.data = msg.data || this.data;
             msg.headers = { ...this.headers };
@@ -393,18 +393,18 @@ export class Message {
         return this;
     }
 
-    static fromServerRequest(req: ServerRequest) {
+    static fromServerRequest(req: ServerRequest, tenant: string) {
         const url = new Url(req.url);
-        return new Message(url, req.method, req.headers, MessageBody.fromServerRequest(req) || undefined);
+        return new Message(url, tenant, req.method, req.headers, MessageBody.fromServerRequest(req) || undefined);
     }
 
-    static fromRequest(req: Request) {
+    static fromRequest(req: Request, tenant: string) {
         const url = new Url(req.url);
-        return new Message(url, req.method, req.headers, MessageBody.fromRequest(req) || undefined);
+        return new Message(url, tenant, req.method, req.headers, MessageBody.fromRequest(req) || undefined);
     }
  
-    static fromResponse(resp: Response) {
-        const msg = new Message(resp.url, "", resp.headers,
+    static fromResponse(resp: Response, tenant: string) {
+        const msg = new Message(resp.url, tenant, "", resp.headers,
             resp.body
                 ? new MessageBody(resp.body, resp.headers.get('content-type') || 'text/plain')
                 : undefined);
@@ -416,20 +416,24 @@ export class Message {
         return Url.urlRegex.test(url) || (url.startsWith('$') && !url.startsWith('$this'));
     }
 
+    private static isMethod(method: string) {
+        return [ "GET", "POST", "PUT", "OPTIONS", "HEAD", "PATCH", "$METHOD" ].includes(method);
+    }
+
 
     /** A request spec is "[<method>] [<post data property>] <url>" */
-    static fromSpec(spec: string, referenceUrl?: Url, data?: any, defaultMethod?: string, name?: string, inheritMethod?: string, headers?: object) {
+    static fromSpec(spec: string, tenant: string, referenceUrl?: Url, data?: any, defaultMethod?: string, name?: string, inheritMethod?: string, headers?: object) {
         const parts = spec.trim().split(' ');
         let method = defaultMethod || 'GET';
         let url = '';
         let postData: any = null;
-        if (Message.isUrl(parts[0])) {
+        if (Message.isUrl(parts[0]) && !Message.isMethod(parts[0])) {
             url = spec;
-        } else if (parts.length > 1 && Message.isUrl(parts[1])) {
+        } else if (parts.length > 1 && Message.isUrl(parts[1]) && Message.isMethod(parts[0])) {
             // $METHOD indicates use the method inherited from an outer message
             method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0];
             url = parts.slice(1).join(' ');
-        } else if (parts.length > 2 && Message.isUrl(parts[2]) && data) {
+        } else if (parts.length > 2 && Message.isUrl(parts[2]) && Message.isMethod(parts[0]) && data) {
             method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0];
             const propertyPath = parts[1];
             if (propertyPath === '$this') {
@@ -446,11 +450,11 @@ export class Message {
             const refUrl = referenceUrl || new Url('/');
             const urls = resolvePathPatternWithUrl(url, refUrl, data, name);
             if (Array.isArray(urls)) {
-                return urls.map((url) => new Message(new Url(url), method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined));
+                return urls.map((url) => new Message(new Url(url), tenant, method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined));
             }
             url = urls;
         }
-        return new Message(new Url(url), method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined);
+        return new Message(new Url(url), tenant, method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined);
     }
 
     static async join(...msgs: Message[]): Promise<Message | null> {

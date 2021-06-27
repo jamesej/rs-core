@@ -11,6 +11,7 @@
                 "--unstable",
                 "--inspect-brk",
                 "--allow-all",
+                "--import-map=importMap.json",
                 "test/"
             ],
             "attachSimplePort": 9229,
@@ -26,6 +27,7 @@
                 "--unstable",
                 "--inspect-brk",
                 "--allow-all",
+                "--import-map=C:\\Dev\\rs-runtime\\importMap.json",
                 "${file}"
             ],
             "attachSimplePort": 9229,
