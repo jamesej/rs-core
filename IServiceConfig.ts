@@ -1,5 +1,7 @@
 import { PipelineSpec } from "./PipelineSpec.ts";
 
+export type PrePost = "pre" | "post";
+
 export interface IServiceConfig {
     name: string;
     source: string;
@@ -8,6 +10,8 @@ export interface IServiceConfig {
     infraName?: string;
     adapterConfig?: Record<string, unknown>;
     manifestConfig?: IConfigFromManifest;
+    // automatically set to position of service in private service pipeline to enable pre-write and post-read in one service
+    prePost?: PrePost;
 }
 
 export interface IConfigFromManifest {
@@ -33,7 +37,8 @@ export const schemaIServiceConfig = {
         "basePath": { "type": "string" },
         "adapterSource": { "type": "string"},
         "infraName": { "type": "string" },
-        "adapterConfig": { "type": "object", "properties": {} }
+        "adapterConfig": { "type": "object", "properties": {} },
+        "prePost": { "type": "string", "enum": [ "pre", "post" ] }
     },
     "required": [ "name", "moduleSource", "basePath" ]
 }

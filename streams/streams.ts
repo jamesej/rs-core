@@ -94,6 +94,10 @@ export async function writeFileStream(path: string): Promise<WritableStream<Uint
         },
         close() {
             f.close();
+        },
+        abort(reason) {
+            console.error('Write abort: ', reason);
+            f.close();
         }
       });
     return stream;
