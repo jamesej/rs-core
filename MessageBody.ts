@@ -7,7 +7,7 @@ import { readerToStream } from "./streams/streams.ts";
 import { readerFromStreamReader } from "std/io/streams.ts"
 
 export class MessageBody {
-    statusCode: number = 0;
+    statusCode = 0;
 
     private _size?: number;
     /** Size of data in bytes */
@@ -18,6 +18,10 @@ export class MessageBody {
     }
     set size(newSize: number) {
         this._size = newSize;
+    }
+
+    get ok(): boolean {
+        return this.statusCode === 0 || (200 <= this.statusCode) && (this.statusCode < 300);
     }
 
     constructor(public data: ArrayBuffer | ReadableStream | null, public mimeType: string = "text/plain", size?: number, public dateModified?: Date, public filename?: string) {
@@ -92,7 +96,7 @@ export class MessageBody {
     /** returns the body as a UTF8 string for text or json, otherwise base 64 encoded */
     async asString() {
         if (this.data === null) return null;
-        let enc: string = 'base64';
+        let enc = 'base64';
         let str: string;
         if (this.isTextual()) {
             str = ab2str((await this.asArrayBuffer()) as ArrayBuffer);
@@ -128,9 +132,9 @@ export class MessageBody {
         return new Uint8Array(this.data);
     }
 
-    async asAny(): Promise<any> {
+    asAny(): Promise<any> {
         if (this.data === null) {
-            return null;
+            return Promise.resolve(null);
         } else if (isJson(this.mimeType)) {
             return this.asJson();
         } else if (isText(this.mimeType)) {

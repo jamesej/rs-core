@@ -64,14 +64,14 @@ const sendHeaders: string[] = [
 export class Message {
     cookies: { [key: string]: string } = {};
     headers: { [key: string]: string | string[] } = {};
-    context: { [key: string]: any } = {};
-    depth: number = 0;
-    conditionalMode: boolean = false;
-    authenticated: boolean = false;
-    originator: string = '';
+    context: { [key: string]: Record<string, unknown> } = {};
+    depth = 0;
+    conditionalMode = false;
+    authenticated = false;
+    originator = '';
     internalPrivilege = false;
     url: Url;
-    protected _status: number = 0;
+    protected _status = 0;
     protected uninitiatedDataCopies: MessageBody[] = [];
     
     private static pullName = new RegExp(/([; ]name=["'])(.*?)(["'])/);
@@ -99,13 +99,18 @@ export class Message {
         return match && match[2] ? match[2] : '';
     }
     set name(name: string) {
-        let cd = this.getHeader('Content-Disposition') as string;
+        const cd = this.getHeader('Content-Disposition') as string;
         if (cd) {
             this.setHeader('Content-Disposition',
                 cd.replace(Message.pullName, `$1${name}$3`));
         } else {
             this.setHeader('Content-Disposition', `form-data; name="${name}"`);
         }
+    }
+
+    get host(): string {
+        const host = this.getHeader('Host');
+        return host || '';
     }
 
     constructor(url: Url | string, public tenant: string, public method: string = "GET", headers?: Headers | { [key:string]: string | string[] }, public data?: MessageBody) {
@@ -133,24 +138,13 @@ export class Message {
         return msg.setStatus(this.status);
     }
 
-    /** requires a call to initiateDataCopies to start streams in copies */
+    /** copies the messge's data, teeing it if it is a stream */
     copyWithData(): Message {
         const newMsg = this.copy();
         newMsg.conditionalMode = this.conditionalMode;
         newMsg.data = this.data ? this.data.copy() : undefined;
         if (newMsg.data) this.uninitiatedDataCopies.push(newMsg.data);
         return newMsg;
-    }
-
-    copyToGet(url: string): Message {
-        const copyMsg = this.copy();
-        copyMsg.method = "GET";
-        copyMsg.url = new Url(url);
-        return copyMsg;
-    }
-
-    initiateDataCopies() {
-        // not needed with Streams
     }
 
     hasData(): boolean {
@@ -275,7 +269,7 @@ export class Message {
 
     setUrl(url: Url | string) {
         if (typeof url === 'string') {
-            this.url = new Url(url);
+            this.url = Url.inheritingBase(this.url, url);
         } else {
             this.url = url;
         }
@@ -284,6 +278,11 @@ export class Message {
 
     setName(name: string) {
         this.name = name;
+        return this;
+    }
+
+    setDateModified(dateModified: Date) {
+        if (this.data) this.data.dateModified = dateModified;
         return this;
     }
 
@@ -346,25 +345,6 @@ export class Message {
         const msgOut = Message.fromResponse(resp, this.tenant);
         msgOut.method = this.method; // slightly pointless
         return msgOut;
-    }
-
-    divertToPattern(pathPattern: string) {
-        this.url = new Url(resolvePathPatternWithUrl(pathPattern, this.url, undefined, this.name) as string);
-        return this;
-    }
-
-    async divertToObjectPattern(pathPattern: string, url: Url): Promise<Message | Message[]> {
-        let obj = {};
-        // include object if there's data, it's json and it includes an object macro
-        if (this.data && this.data.mimeType && isJson(this.data.mimeType) && pathPattern.indexOf('${') >= 0) {
-            obj = await this.data.asJson();
-        }
-        const paths = resolvePathPatternWithUrl(pathPattern, url, obj, this.name);
-        if (Array.isArray(paths)) {
-            return paths.map(path => this.copy().setUrl(new Url(path)));
-        } else {
-            return this.setUrl(new Url(paths));
-        }
     }
 
     async divertToSpec(spec: string | string[], defaultMethod?: string, effectiveUrl?: Url, inheritMethod?: string, headers?: object): Promise<Message | Message[]> {
@@ -450,31 +430,10 @@ export class Message {
             const refUrl = referenceUrl || new Url('/');
             const urls = resolvePathPatternWithUrl(url, refUrl, data, name);
             if (Array.isArray(urls)) {
-                return urls.map((url) => new Message(new Url(url), tenant, method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined));
+                return urls.map((url) => new Message(Url.inheritingBase(referenceUrl, url), tenant, method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined));
             }
             url = urls;
         }
-        return new Message(new Url(url), tenant, method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined);
-    }
-
-    static async join(...msgs: Message[]): Promise<Message | null> {
-        if (msgs.length === 0) return null;
-        if (msgs.length === 1) return msgs[0];
-
-        const joined = msgs[0].copy();
-        const msgUrlsAreSame = msgs.every((msg: Message) => (msg.url || '').toString() === (msgs[0].url || '').toString());
-        if (!msgUrlsAreSame) return null;
-        
-        joined.data = MessageBody.fromObject(await Promise.all(msgs.map(async msg => {
-            let dataObj: any  = {};
-            try {
-                dataObj = msg.data ? await msg.data.asJson() : null;
-            } catch { }
-            return dataObj;
-        })));
-        joined.status = Math.max(...msgs.map(m => m.status));
-        joined.url = msgs[0].url;
-
-        return joined;
+        return new Message(Url.inheritingBase(referenceUrl, url), tenant, method, { ...headers }, postData ? MessageBody.fromObject(postData) : undefined);
     }
 }

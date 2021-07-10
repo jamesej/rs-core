@@ -10,8 +10,6 @@ export interface IServiceConfig {
     infraName?: string;
     adapterConfig?: Record<string, unknown>;
     manifestConfig?: IConfigFromManifest;
-    // automatically set to position of service in private service pipeline to enable pre-write and post-read in one service
-    prePost?: PrePost;
 }
 
 export interface IConfigFromManifest {

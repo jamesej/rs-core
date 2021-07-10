@@ -1,5 +1,5 @@
 import { IAdapter } from "./adapter/IAdapter.ts";
-import { IServiceConfig } from "./IServiceConfig.ts";
+import { IServiceConfig, PrePost } from "./IServiceConfig.ts";
 import { Message } from "./Message.ts";
 import { longestMatchingPath, PathMap } from "./PathMap.ts";
 import { PipelineSpec } from "./PipelineSpec.ts";
@@ -8,6 +8,7 @@ import { Url } from "./Url.ts";
 
 export interface SimpleServiceContext {
     tenant: string;
+    prePost?: PrePost;
     call: (msg: Message, source: Source) => Promise<Message>;
     runPipeline: (msg: Message, pipelineSpec: PipelineSpec, contextUrl?: Url, concurrencyLimit?: number) => Promise<Message>;
 }

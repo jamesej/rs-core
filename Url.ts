@@ -112,8 +112,9 @@ export class Url {
         this.subPathElementCount = this.pathElements.length - this.basePathElementCount - count;
     }
 
-    constructor(urlString?: string) {
+    constructor(urlString?: string | Url) {
         if (!urlString) return;
+        if (typeof urlString !== 'string') urlString = urlString.toString();
 
         const urlParse = urlString.match(Url.urlRegex);
         if (!urlParse) throw new Error('bad url');
@@ -151,6 +152,10 @@ export class Url {
         return `${this.scheme || ''}${this.domain || ''}${this.path}${this.queryString ? '?' + this.queryString : ''}${this.fragment ? '#' + this.fragment : ''}`;
     }
 
+    baseUrl() {
+        return `${this.scheme || ''}${this.domain || ''}`;
+    }
+
     static urlRegex = /^((https?:\/\/)([^?#\/]+)|\/)?([^?#]*)(\?[^#]*)?(#.*)?$/;
 
     static fromPath(path: string): Url {
@@ -159,5 +164,15 @@ export class Url {
 
     static fromPathPattern(pathPattern: string, url: Url, obj?: Record<string, unknown>) {
         return new Url(resolvePathPatternWithUrl(pathPattern, url, obj) as string);
+    }
+
+    static inheritingBase(baseUrl: string | Url | undefined, url: string | Url) {
+        const newUrl = new Url(url);
+        if (baseUrl) {
+            baseUrl = new Url(baseUrl);
+            newUrl.scheme = newUrl.scheme || baseUrl.scheme;
+            newUrl.domain = newUrl.domain || baseUrl.domain;
+        }
+        return new Url;
     }
 }
