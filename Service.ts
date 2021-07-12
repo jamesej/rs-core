@@ -5,30 +5,33 @@ import { longestMatchingPath, PathMap } from "./PathMap.ts";
 import { PipelineSpec } from "./PipelineSpec.ts";
 import { Source } from "./Source.ts";
 import { Url } from "./Url.ts";
+import * as log from "std/log/mod.ts";
 
 export interface SimpleServiceContext {
     tenant: string;
     prePost?: PrePost;
-    call: (msg: Message, source: Source) => Promise<Message>;
+    makeRequest: (msg: Message, source: Source) => Promise<Message>;
     runPipeline: (msg: Message, pipelineSpec: PipelineSpec, contextUrl?: Url, concurrencyLimit?: number) => Promise<Message>;
+    logger: log.Logger;
 }
 
 export interface ServiceContext<TAdapter extends IAdapter> extends SimpleServiceContext {
     adapter: TAdapter;
 }
 
-export type ServiceFunction<T extends IAdapter = IAdapter> = (msg: Message, context: ServiceContext<T>, config: IServiceConfig) => Promise<Message>;
+export type ServiceFunction<TAdapter extends IAdapter = IAdapter, TConfig extends IServiceConfig = IServiceConfig> =
+    (msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => Promise<Message>;
 
 export enum AuthorizationType {
     none, read, write, create
 }
 
-export class Service<TAdapter extends IAdapter = IAdapter> {
+export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServiceConfig = IServiceConfig> {
     static Identity = (new Service()).setMethodPath("all", "/", msg => Promise.resolve(msg));
     
-    methodFuncs: { [ method: string ]: PathMap<ServiceFunction<TAdapter>> } = {};
+    methodFuncs: { [ method: string ]: PathMap<ServiceFunction<TAdapter, TConfig>> } = {};
 
-    funcByUrl(method: string, url: Url) : [ string[], ServiceFunction<TAdapter> ] | undefined {
+    funcByUrl(method: string, url: Url) : [ string[], ServiceFunction<TAdapter, TConfig> ] | undefined {
         const pathMap = this.methodFuncs[method];
         if (!pathMap) return undefined;
         const matchPath = longestMatchingPath(pathMap, url.servicePath);
@@ -37,10 +40,10 @@ export class Service<TAdapter extends IAdapter = IAdapter> {
         return [ matchPathElements, pathMap[matchPath] ];
     }
 
-    func: ServiceFunction<TAdapter> = (msg: Message, context: ServiceContext<TAdapter>, config: IServiceConfig) => {
+    func: ServiceFunction<TAdapter, TConfig> = (msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => {
         const method = msg.method.toLowerCase();
-        const callMethodFunc = ([ matchPathElements, func ]: [ string[], ServiceFunction<TAdapter> ],
-            msg: Message, context: ServiceContext<TAdapter>, config: IServiceConfig) => {
+        const callMethodFunc = ([ matchPathElements, func ]: [ string[], ServiceFunction<TAdapter, TConfig> ],
+            msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => {
             msg.url.basePathElements = msg.url.basePathElements.concat(matchPathElements);
             return func(msg, context, config);
         }
@@ -90,7 +93,7 @@ export class Service<TAdapter extends IAdapter = IAdapter> {
         }
     }
 
-    setMethodPath(method: string, path: string, func: ServiceFunction<TAdapter>) {
+    setMethodPath(method: string, path: string, func: ServiceFunction<TAdapter, TConfig>) {
         if (this.methodFuncs[method]) {
             this.methodFuncs[method][path] = func;
         } else {
@@ -99,33 +102,41 @@ export class Service<TAdapter extends IAdapter = IAdapter> {
         return this;
     }
 
-    get = (func: ServiceFunction<TAdapter>) => this.setMethodPath('get', '/', func);
+    get = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('get', '/', func);
 
-    getPath = (path: string, func: ServiceFunction<TAdapter>) => this.setMethodPath('get', path, func);
+    getPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('get', path, func);
 
-    getDirectory = (func: ServiceFunction<TAdapter>) => this.setMethodPath('getDirectory', '/', func);
+    getDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('getDirectory', '/', func);
     
-    post = (func: ServiceFunction<TAdapter>) => this.setMethodPath('post', '/', func);
+    post = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('post', '/', func);
 
-    postPath = (path: string, func: ServiceFunction<TAdapter>) => this.setMethodPath('post', path, func);
+    postPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('post', path, func);
     
-    postDirectory = (func: ServiceFunction<TAdapter>) => this.setMethodPath('postDirectory', '/', func);
+    postDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('postDirectory', '/', func);
 
-    put = (func: ServiceFunction<TAdapter>) => this.setMethodPath('put', '/', func);
+    put = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('put', '/', func);
 
-    putPath = (path: string, func: ServiceFunction<TAdapter>) => this.setMethodPath('put', path, func);
+    putPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('put', path, func);
 
-    putDirectory = (func: ServiceFunction<TAdapter>) => this.setMethodPath('putDirectory', '/', func);
+    putDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('putDirectory', '/', func);
 
-    delete = (func: ServiceFunction<TAdapter>) => this.setMethodPath('delete', '/', func);
+    delete = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('delete', '/', func);
 
-    deletePath = (path: string, func: ServiceFunction<TAdapter>) => this.setMethodPath('delete', path, func);
+    deletePath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('delete', path, func);
 
-    deleteDirectory = (func: ServiceFunction<TAdapter>) => this.setMethodPath('deleteDirectory', '/', func);
+    deleteDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('deleteDirectory', '/', func);
 
-    all = (func: ServiceFunction<TAdapter>) => this.setMethodPath('all', '/', func);
+    all = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('all', '/', func);
 
-    allPath = (path: string, func: ServiceFunction<TAdapter>) => this.setMethodPath('all', path, func);
+    allPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('all', path, func);
+}
+
+export class AuthService<TAdapter extends IAdapter = IAdapter, TConfig extends IServiceConfig = IServiceConfig> extends Service<TAdapter, TConfig> {
+    setUser = (func: ServiceFunction<TAdapter, TConfig>) => {
+        this.setUserFunc = func;
+    }
+
+    setUserFunc: ServiceFunction<TAdapter, TConfig> = (msg: Message) => Promise.resolve(msg);
 }
 
 export type MessageFunction = (msg: Message) => Promise<Message>;

@@ -7,6 +7,7 @@ import parseRange from "https://cdn.skypack.dev/range-parser?dts";
 import { ab2str, str2ab } from "./utility/arrayBufferUtility.ts";
 import { getProp } from "./utility/utility.ts";
 import { ServerRequest, Response as ServerResponse } from 'std/http/server.ts';
+import { IAuthUser } from "./user/IAuthUser.ts";
 
 const sendHeaders: string[] = [
     "accept-ranges",
@@ -71,6 +72,7 @@ export class Message {
     originator = '';
     internalPrivilege = false;
     url: Url;
+    user: IAuthUser | null = null;
     protected _status = 0;
     protected uninitiatedDataCopies: MessageBody[] = [];
     
