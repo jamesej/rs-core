@@ -153,7 +153,7 @@ export class Url {
     }
 
     baseUrl() {
-        return `${this.scheme || ''}${this.domain || ''}`;
+        return `${this.scheme || ''}${this.domain || ''}/${this.basePathElements.join('/')}`;
     }
 
     static urlRegex = /^((https?:\/\/)([^?#\/]+)|\/)?([^?#]*)(\?[^#]*)?(#.*)?$/;
