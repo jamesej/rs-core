@@ -38,5 +38,5 @@ export const schemaIServiceConfig = {
         "adapterConfig": { "type": "object", "properties": {} },
         "prePost": { "type": "string", "enum": [ "pre", "post" ] }
     },
-    "required": [ "name", "moduleSource", "basePath" ]
+    "required": [ "name", "source", "basePath" ]
 }
