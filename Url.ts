@@ -149,7 +149,8 @@ export class Url {
     }
 
     toString() {
-        return `${this.scheme || ''}${this.domain || ''}${this.path}${this.queryString ? '?' + this.queryString : ''}${this.fragment ? '#' + this.fragment : ''}`;
+        const host = `${this.scheme || ''}${this.domain || ''}`;
+        return `${this.isRelative ? '' : host}${this.path}${this.queryString ? '?' + this.queryString : ''}${this.fragment ? '#' + this.fragment : ''}`;
     }
 
     baseUrl() {
@@ -173,6 +174,6 @@ export class Url {
             newUrl.scheme = newUrl.scheme || baseUrl.scheme;
             newUrl.domain = newUrl.domain || baseUrl.domain;
         }
-        return new Url;
+        return newUrl;
     }
 }

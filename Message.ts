@@ -137,6 +137,8 @@ export class Message {
         msg.depth = this.depth;
         msg.conditionalMode = false;
         msg.authenticated = this.authenticated;
+        msg.internalPrivilege = this.internalPrivilege;
+        msg.user = this.user;
         return msg.setStatus(this.status);
     }
 
@@ -228,9 +230,9 @@ export class Message {
     }
 
     setCookie(name: string, value: string, options: CookieOptions) {
-        let currSetCookie: string[] = this.headers['Set-Cookie'] as string[] || [];
+        let currSetCookie: string[] = this.headers['set-cookie'] as string[] || [];
         currSetCookie = currSetCookie.filter((sc) => !sc.startsWith(name + '='));
-        this.headers['Set-Cookie'] = [ ...currSetCookie, `${name}=${encodeURIComponent(value)}${options}` ];
+        this.headers['set-cookie'] = [ ...currSetCookie, `${name}=${encodeURIComponent(value)}${options}` ];
         return this;
     }
 
@@ -365,6 +367,10 @@ export class Message {
             msg.data = msg.data || this.data;
             msg.headers = { ...this.headers };
             msg.setStatus(this.status);
+            msg.internalPrivilege = this.internalPrivilege;
+            msg.depth = this.depth;
+            msg.authenticated = this.authenticated;
+            msg.user = this.user;
         });
         return msgs;
     }

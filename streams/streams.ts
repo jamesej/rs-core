@@ -87,7 +87,7 @@ export async function readFileStream(path: string, startByte: number = 0, endByt
 
 export async function writeFileStream(path: string): Promise<WritableStream<Uint8Array>> {
     await ensureDir(dirname(path));
-    let f = await Deno.open(path, { create: true, write: true });
+    let f = await Deno.open(path, { create: true, write: true, truncate: true });
     const stream = new WritableStream({
         async write(chunk) {
           await writeAll(f, chunk);

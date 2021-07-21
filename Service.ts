@@ -94,6 +94,7 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
     }
 
     setMethodPath(method: string, path: string, func: ServiceFunction<TAdapter, TConfig>) {
+        if (!path.startsWith('/')) path = '/' + path;
         if (this.methodFuncs[method]) {
             this.methodFuncs[method][path] = func;
         } else {
