@@ -5,7 +5,7 @@ export interface IAuthUser {
     originalEmail: string;
     roles: string;
     password: string;
-    exp?: Date;
+    exp?: number;
 }
 
 export function userIsAnon(user: IAuthUser) {

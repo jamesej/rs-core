@@ -23,7 +23,7 @@ export async function* toBlockChunks(stringItbl: AsyncIterable<string>) {
     let pointer = 0;
     const encoder = new TextEncoder();
 
-    for await (let stringChunk of stringItbl) {
+    for await (const stringChunk of stringItbl) {
         const bytes = encoder.encode(stringChunk);
         let start = 0;
         let bytesRemaining = bytes.length - start;

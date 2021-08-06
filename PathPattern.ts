@@ -7,6 +7,7 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
     const pathParts = getParts(currentPath);
     const basePathParts = getParts(basePath);
     const subPathParts = getParts(subPath);
+    const fullPathParts = basePathParts.concat(pathParts);
     const nameParts = getParts(name);
     const getPartsMatch = (section: string, position0: string, position1: string) => {
         try {
@@ -14,6 +15,7 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
             if (section === 'B') parts = basePathParts;
             if (section === 'S') parts = subPathParts;
             if (section === 'N') parts = nameParts;
+            if (section === 'P') parts = fullPathParts;
             let pos0 = parseInt(position0.substr(1));
             if (position0.startsWith('<')) pos0 = -pos0 - 1;
             let match: string | undefined = '';
@@ -31,8 +33,9 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
     }
     let result = pathPattern
         .replace('$*', currentPath)
+        .replace('$P*', fullPathParts.join('/'))
         .replace('$N*', name || '$N*')
-        .replace(/\$([BSN])?([<>]\d+)([<>]\d+)?(:\((.+?)\)|:\$([BSN])?([<>]\d+)([<>]\d+)?)?/g, (match, p1, p2, p3, p4, p5, p6, p7, p8) => {
+        .replace(/\$([BSNP])?([<>]\d+)([<>]\d+)?(:\((.+?)\)|:\$([BSNP])?([<>]\d+)([<>]\d+)?)?/g, (match, p1, p2, p3, p4, p5, p6, p7, p8) => {
             const partsMatch = getPartsMatch(p1, p2, p3);
             if (partsMatch || !p4) return partsMatch;
             if (p4.startsWith(':(')) return p5;

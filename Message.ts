@@ -301,8 +301,9 @@ export class Message {
 
     exitConditionalMode() {
         if (this?.data?.mimeType === 'application/json' && this?.data.data instanceof ArrayBuffer) {
-            const err = JSON.parse(ab2str(this.data.data));
-            if (err['_errorStatus'] !== undefined && err['_errorMessage'] !== undefined) {
+            const str = ab2str(this.data.data);
+            const err = str ? JSON.parse(str) : {};
+            if (err && err['_errorStatus'] !== undefined && err['_errorMessage'] !== undefined) {
                 this.setStatus(err['_errorStatus'] as number, err['_errorMessage'] as string);
             }
         }

@@ -68,8 +68,9 @@ export const schemaIServiceConfig = {
         },
         "adapterSource": { "type": "string"},
         "infraName": { "type": "string" },
-        "adapterConfig": { "type": "object", "properties": {} },
-        "prePost": { "type": "string", "enum": [ "pre", "post" ] }
+        "adapterConfig": { "type": "object", "properties": {} }
     },
     "required": [ "name", "source", "basePath", "access" ]
 }
+
+export const schemaIServiceConfigExposedProperties = [ "name", "source", "basePath", "access", "caching", "adapterSource" ]; 
