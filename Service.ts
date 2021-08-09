@@ -74,7 +74,7 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
                     return msg;
                 });
             } else {
-                return Promise.resolve(msg.setStatus(405, 'Method not allowed'));
+                return Promise.resolve(msg.setStatus(404, 'Not found'));
             }
         }
         if (this.methodFuncs['all']) {
@@ -82,7 +82,7 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
             if (!pathFunc) return Promise.resolve(msg.setStatus(404, 'Not found'));
             return callMethodFunc(pathFunc, msg, context, config);
         }
-        return Promise.resolve(msg.setStatus(405, 'Method not allowed'));
+        return Promise.resolve(msg.setStatus(404, 'Not found'));
     }
 
     authType: (msg: Message) => Promise<AuthorizationType> = (msg: Message) => { // returns promise as overrides may need to be async
