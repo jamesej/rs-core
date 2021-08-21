@@ -157,6 +157,20 @@ export class Url {
         return `${this.scheme || ''}${this.domain || ''}/${this.basePathElements.join('/')}`;
     }
 
+    follow(relativeUrl: string) {
+        const newUrl = this.copy();
+        if (!relativeUrl) return newUrl;
+        for (const part of relativeUrl.split('/')) {
+            if (part === '..') {
+                newUrl.pathElements.pop();
+            } else if (part && part !== '.') {
+                newUrl.pathElements.push(part);
+            }
+        }
+        newUrl._isDirectory = relativeUrl.endsWith('/');
+        return newUrl;
+    }
+
     static urlRegex = /^((https?:\/\/)([^?#\/]+)|\/)?([^?#]*)(\?[^#]*)?(#.*)?$/;
 
     static fromPath(path: string): Url {

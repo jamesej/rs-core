@@ -3,7 +3,7 @@ import { ItemMetadata } from "../ItemMetadata.ts";
 
 export interface IFileAdapter {
     read: (path: string, extensions?: string[], startByte?: number, endByte?: number) => Promise<MessageBody>;
-    readDirectory: (path: string) => Promise<MessageBody>;
+    readDirectory: (path: string, getUpdateTime?: boolean) => Promise<MessageBody>;
     write: (path: string, data: MessageBody, extensions?: string[]) => Promise<number>;
     delete: (path: string, extensions?: string[]) => Promise<number>;
     /** Won't delete subdirectories, or contained files other than those whose names end in deleteableFileSuffix */
