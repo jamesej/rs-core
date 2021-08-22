@@ -60,28 +60,35 @@ export function readerToStream(r: Deno.Reader): ReadableStream<Uint8Array> {
     return stream;
 }
 
-export async function readFileStream(path: string, startByte: number = 0, endByte: number = -1): Promise<ReadableStream<Uint8Array>> {
-    let f = await Deno.open(path);
+export async function readFileStream(path: string, startByte = 0, endByte = -1): Promise<ReadableStream<Uint8Array>> {
+    const f = await Deno.open(path);
     if (startByte > 0) {
         await Deno.seek(f.rid, startByte, Deno.SeekMode.Start);
     }
-    let stream: ReadableStream<Uint8Array>;
     let itbl = iter(f, { bufSize });
     if (endByte > -1) {
         itbl = limitBytes(itbl, endByte - startByte);
     }
-    stream = new ReadableStream({
+    const stream = new ReadableStream<Uint8Array>({
         async pull(controller) {
-            const { value, done } = await itbl.next();
-    
-            if (done) {
-                controller.close();
+            try {
+                const { value, done } = await itbl.next();
+        
+                if (done) {
+                    controller.close();
+                    f.close();
+                } else {
+                    controller.enqueue(value);
+                }
+            } catch (err) {
+                controller.error(err);
                 f.close();
-            } else {
-                controller.enqueue(value);
             }
         },
-        });
+        cancel() {
+            f.close();
+        }
+    });
     return stream;
 }
 

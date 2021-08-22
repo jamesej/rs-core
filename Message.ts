@@ -193,8 +193,10 @@ export class Message {
     }
 
     setStatus(status: number, message?: string): Message {
+        if (message !== undefined) {
+            this.setData(message, 'text/plain');
+        }
         this.status = status;
-        if (message !== undefined) this.data = new MessageBody(str2ab(message), 'text/plain');
         return this;
     }
 
@@ -240,20 +242,28 @@ export class Message {
         this.setCookie(name, '', new CookieOptions({ expires: new Date(2000, 0, 1) }));
     }
 
-    setData(data: string | ArrayBuffer | ReadableStream, mimeType: string) {
-        let bodyData;
-        if (typeof data === 'string') {
-            bodyData = new MessageBody(str2ab(data), mimeType);
-        } else {
-            bodyData = new MessageBody(data, mimeType);
+    private cancelOldStream() {
+        if (this.data?.data instanceof ReadableStream) {
+            this.data.data.cancel('message body change'); // fire&forget promise
         }
-        this.data = bodyData;
+    }
+
+    setData(data: string | ArrayBuffer | ReadableStream | null, mimeType: string) {
+        this.cancelOldStream();
+        if (data == null) {
+            this.data = undefined;
+        } else if (typeof data === 'string') {
+            this.data = new MessageBody(str2ab(data), mimeType);
+        } else {
+            this.data = new MessageBody(data, mimeType);
+        }
         this._status = 0;
         this.conditionalMode = false;
         return this;
     }
 
     setText(data: string) {
+        this.cancelOldStream();
         this.data = new MessageBody(str2ab(data), 'text/plain');
         this._status = 0;
         this.conditionalMode = false;
