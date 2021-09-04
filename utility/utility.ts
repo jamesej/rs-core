@@ -138,6 +138,76 @@ export function arrayEqual<T>(arr0: ArrayLike<T>, arr1: ArrayLike<T>): boolean {
     return true;
 }
 
+export function isObject(item: any) {
+    return (item && typeof item === 'object' && !Array.isArray(item));
+}
+
+//
+// like Object.assign only recursive/deep
+//
+export function mergeDeep(target: any, ...sources: Record<string, any>[]): any {
+    if (!sources.length) return target;
+    const source = sources.shift();
+
+    if (isObject(target) && isObject(source)) {
+        for (const key in source) {
+            if (isObject(source[key])) {
+                if (!target[key]) Object.assign(target, { [key]: {} });
+                mergeDeep(target[key], source[key]);
+            } else {
+                Object.assign(target, { [key]: source[key] });
+            }
+        }
+    }
+
+    return mergeDeep(target, ...sources);
+}
+
+export function deepEqual(obj1: any, obj2: any) {
+
+    if (obj1 === obj2) // it's just the same object. No need to compare.
+        return true;
+
+    if (isPrimitive(obj1) && isPrimitive(obj2)) // compare primitives
+        return obj1 === obj2;
+
+    if (Object.keys(obj1).length !== Object.keys(obj2).length)
+        return false;
+
+    // compare objects with same number of keys
+    for (const key in obj1)
+    {
+        if (!(key in obj2)) return false; //other object doesn't have this prop
+        if (!deepEqual(obj1[key], obj2[key])) return false;
+    }
+
+    return true;
+}
+
+export function deepEqualIfPresent(objSuper: any, objSub: any) {
+    if (objSuper === objSub) // it's just the same object. No need to compare.
+        return true;
+
+    if (isPrimitive(objSuper) && isPrimitive(objSub)) // compare primitives
+        return objSuper === objSub;
+
+    if (Array.isArray(objSuper) && Array.isArray(objSub) && objSuper.length !== objSub.length)
+        return false;
+
+    for (const key in objSub)
+    {
+        if (!deepEqualIfPresent(objSuper[key], objSub[key])) return false;
+    }
+
+    return true;
+}
+
+//check if value is primitive
+function isPrimitive(obj: any)
+{
+    return (obj !== Object(obj));
+}
+
 export function getProp(object: any, path: string[] | string, defaultVal?: any): any {
     if (!Array.isArray(path)) path = path.toString().match(/[^.[\]]+/g) || [];
   

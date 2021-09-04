@@ -1,6 +1,16 @@
 import { getProp, slashTrim } from "./utility/utility.ts";
 import { QueryStringArgs, Url } from "./Url.ts";
 
+function queryString(args?: QueryStringArgs) {
+    return Object.entries((args || {}))
+        .map(([key, val]) => key + (val ? '=' + encodeURIComponent(val) : ''))
+        .join('&');
+}
+
+function fullQueryString(args?: QueryStringArgs) {
+    return args ? "?" + queryString(args) : '';
+}
+
 export function resolvePathPattern(pathPattern: string, currentPath: string, basePath?: string, subPath?: string, query?: QueryStringArgs, name?: string) {
     if (!pathPattern) return '';
     const getParts = (path?: string) => slashTrim(path || '').split('/').filter(part => part !== '');
@@ -31,17 +41,18 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
             return '';
         }
     }
-    let result = pathPattern
-        .replace('$*', currentPath)
-        .replace('$P*', fullPathParts.join('/'))
+
+    const result = pathPattern
+        .replace('$*', currentPath + fullQueryString(query))
+        .replace('$P*', fullPathParts.join('/') + fullQueryString(query))
         .replace('$N*', name || '$N*')
-        .replace(/\$([BSNP])?([<>]\d+)([<>]\d+)?(:\((.+?)\)|:\$([BSNP])?([<>]\d+)([<>]\d+)?)?/g, (match, p1, p2, p3, p4, p5, p6, p7, p8) => {
+        .replace(/\$([BSNP])?([<>]\d+)([<>]\d+)?(:\((.+?)\)|:\$([BSNP])?([<>]\d+)([<>]\d+)?)?/g, (_match, p1, p2, p3, p4, p5, p6, p7, p8) => {
             const partsMatch = getPartsMatch(p1, p2, p3);
             if (partsMatch || !p4) return partsMatch;
             if (p4.startsWith(':(')) return p5;
             return getPartsMatch(p6, p7, p8);
-        }).replace(/\$\?(\*|\((.+?)\))/g, (match, p1, p2) => {
-            if (p1 === '*') return Object.entries((query || {})).map(([key, val]) => key + (val ? '=' + encodeURIComponent(val) : '')).join('&');
+        }).replace(/\$\?(\*|\((.+?)\))/g, (_match, p1, p2) => {
+            if (p1 === '*') return queryString(query);
             return (query || {})[p2] === undefined ? '' : (query || {})[p2] || ''
         });
     return result;

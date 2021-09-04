@@ -1,5 +1,8 @@
 import { PipelineSpec } from "./PipelineSpec.ts";
 
+type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>
+type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
+
 export type PrePost = "pre" | "post";
 
 export interface IServiceConfig {
@@ -13,6 +16,8 @@ export interface IServiceConfig {
     adapterConfig?: Record<string, unknown>;
     manifestConfig?: IConfigFromManifest;
 }
+
+export type IChordServiceConfig = PartialBy<IServiceConfig, "access">;
 
 export interface IAccessControl {
     readRoles: string;
@@ -71,6 +76,14 @@ export const schemaIServiceConfig = {
         "adapterConfig": { "type": "object", "properties": {} }
     },
     "required": [ "name", "source", "basePath", "access" ]
-}
+};
+
+export const schemaIChordServiceConfig = {
+    "type": "object",
+    "properties": {
+        ...schemaIServiceConfig.properties
+    },
+    "required": [ "name", "source", "basePath" ]
+};
 
 export const schemaIServiceConfigExposedProperties = [ "name", "source", "basePath", "access", "caching", "adapterSource" ]; 

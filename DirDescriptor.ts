@@ -3,6 +3,7 @@ export type ApiPattern = "store" | "transform" | "storeTransform" | "view" | "op
 export interface StoreDetails {
     storeMimeTypes: string[],
     createDirectory: boolean,
+    createFiles: boolean,
     singletonMimeTypes: string[]
 }
 
