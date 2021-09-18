@@ -6,6 +6,7 @@ import { PipelineSpec } from "./PipelineSpec.ts";
 import { Source } from "./Source.ts";
 import { Url } from "./Url.ts";
 import * as log from "std/log/mod.ts";
+import { IServiceManifest } from "./IManifest.ts";
 
 export interface SimpleServiceContext {
     tenant: string;
@@ -13,6 +14,7 @@ export interface SimpleServiceContext {
     makeRequest: (msg: Message, source: Source) => Promise<Message>;
     runPipeline: (msg: Message, pipelineSpec: PipelineSpec, contextUrl?: Url, concurrencyLimit?: number) => Promise<Message>;
     logger: log.Logger;
+    manifest: IServiceManifest;
 }
 
 export interface ServiceContext<TAdapter extends IAdapter> extends SimpleServiceContext {
@@ -82,7 +84,10 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
             if (!pathFunc) return Promise.resolve(msg.setStatus(404, 'Not found'));
             return callMethodFunc(pathFunc, msg, context, config);
         }
-        return Promise.resolve(msg.setStatus(404, 'Not found'));
+        return Promise.resolve(context.manifest.isFilter
+            ? msg
+            : msg.setStatus(404, 'Not found')
+        );
     }
 
     authType: (msg: Message) => Promise<AuthorizationType> = (msg: Message) => { // returns promise as overrides may need to be async

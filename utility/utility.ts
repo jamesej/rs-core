@@ -9,6 +9,10 @@ export function slashTrim(s: string): string {
     return s.substring(start, end);
 }
 
+export function slashTrimLeft(s: string): string {
+    return s.startsWith('/') ? s.substr(1) : s;
+}
+
 export function getExtension(s: string): string {
     let extStart = s.lastIndexOf('.');
     return extStart < 0 ? '' : s.substr(extStart + 1);

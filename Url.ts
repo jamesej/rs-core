@@ -53,18 +53,19 @@ export class Url {
         return (this.resourceParts.length > 1) ? last(this.resourceParts) : '';
     }
 
-    queryString = '';
-    get query(): QueryStringArgs {
-        return this.queryString.split('&').filter(part => !!part).reduce((res, queryPart) => {
+    query: QueryStringArgs = {};
+
+    get queryString(): string {
+        return Object.entries(this.query).map(([key, val]) =>
+            val === null ? key : `${key}=${encodeURIComponent(val)}`
+        ).join('&') || '';
+    }
+    set queryString(qs: string) {
+        this.query = !qs ? {} : qs.split('&').filter(part => !!part).reduce((res, queryPart) => {
             const keyValue = queryPart.split('=');
             res[keyValue[0]] = keyValue.length > 1 ? decodeURIComponentAndPlus(keyValue[1]) : null;
             return res;
         }, {} as QueryStringArgs);
-    }
-    set query(qry: QueryStringArgs) {
-        this.queryString = Object.entries(qry).map(([key, val]) =>
-                val === null ? key : `${key}=${encodeURIComponent(val)}`
-            ).join('&');
     }
 
     basePathElementCount = 0;

@@ -86,7 +86,11 @@ export class Message {
     }
 
     get ok(): boolean {
-        return this.status < 399;
+        return this.status < 400;
+    }
+
+    get isRedirect(): boolean {
+        return 300 <= this.status && this.status < 400;
     }
 
     get isEditorRequest(): boolean {
