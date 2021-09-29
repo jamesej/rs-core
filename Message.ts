@@ -72,11 +72,21 @@ export class Message {
     originator = '';
     internalPrivilege = false;
     url: Url;
+    externalUrl: Url | null = null;
     user: IAuthUser | null = null;
     protected _status = 0;
+    protected _data?: MessageBody;
     protected uninitiatedDataCopies: MessageBody[] = [];
     
     private static pullName = new RegExp(/([; ]name=["'])(.*?)(["'])/);
+
+    get data(): MessageBody | undefined {
+        return this._data;
+    }
+    set data(d: MessageBody | undefined) {
+        this.cancelOldStream();
+        this._data = d;
+    }
 
     get status(): number {
         return this.data && this.data.statusCode > 0 ? this.data.statusCode : this._status;
@@ -93,9 +103,9 @@ export class Message {
         return 300 <= this.status && this.status < 400;
     }
 
-    get isEditorRequest(): boolean {
+    get isManageRequest(): boolean {
         const modeHdr = this.getHeader('X-Restspace-Request-Mode');
-        return !!modeHdr && (modeHdr === 'editor');
+        return !!modeHdr && (modeHdr === 'manage');
     }
 
     get name(): string {
@@ -119,8 +129,9 @@ export class Message {
         return host || '';
     }
 
-    constructor(url: Url | string, public tenant: string, public method: string = "GET", headers?: Headers | { [key:string]: string | string[] }, public data?: MessageBody) {
+    constructor(url: Url | string, public tenant: string, public method: string = "GET", headers?: Headers | { [key:string]: string | string[] }, data?: MessageBody) {
         this.url = (typeof url === 'string') ? new Url(url) : url;
+        this.data = data;
         if (headers) {
             if (headers instanceof Headers) {
                 for (let [key, val] of headers.entries()) this.headers[key] = val;
@@ -138,6 +149,7 @@ export class Message {
 
     copy(): Message {
         const msg = new Message(this.url.copy(), this.tenant, this.method, { ...this.headers }, this.data);
+        msg.externalUrl = this.externalUrl ? this.externalUrl.copy() : null;
         msg.depth = this.depth;
         msg.conditionalMode = false;
         msg.authenticated = this.authenticated;
@@ -218,6 +230,18 @@ export class Message {
         delete this.headers[header.toLowerCase()];
     }
 
+    setServiceRedirect(servicePath: string) {
+        this.setHeader('X-Restspace-Service-Redirect', servicePath);
+    }
+    getServiceRedirect() {
+        const redir = this.getHeader('X-Restspace-Service-Redirect')
+        return redir;
+    }
+    applyServiceRedirect() {
+        const redirServicePath = this.getServiceRedirect();
+        if (redirServicePath) this.url.servicePath = redirServicePath;
+    }
+
     getRequestRange(size: number) {
         const ranges = this.getHeader('Range');
         if (!ranges) return null;
@@ -278,6 +302,12 @@ export class Message {
         this._status = 0;
         this.conditionalMode = false;
         return this.setData(JSON.stringify(value), 'application/json');
+    }
+
+    setDirectoryJson(value: any) {
+        this.setDataJson(value);
+        this.data?.setMimeType('inode/directory+json');
+        return this;
     }
 
     setMethod(httpMethod: string) {
@@ -378,6 +408,7 @@ export class Message {
             obj = await this.data.asJson();
         }
         const msgs = Message.fromSpec(spec, this.tenant, effectiveUrl || this.url, obj, defaultMethod, this.name, inheritMethod, headers);
+        // TODO ensure data splitting works with streams
         (Array.isArray(msgs) ? msgs : [ msgs ]).forEach(msg => {
             msg.data = msg.data || this.data;
             msg.headers = { ...this.headers };
@@ -394,6 +425,10 @@ export class Message {
         this.setStatus(isTemporary ? 302 : 301);
         this.setHeader('Location', url.toString());
         return this;
+    }
+
+    toString() {
+        return `${this.method} ${this.url.toString()} ${this.status} ${this.hasData() ? this.data!.mimeType : "no data"}`;
     }
 
     static fromServerRequest(req: ServerRequest, tenant: string) {

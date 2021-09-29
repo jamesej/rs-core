@@ -64,7 +64,7 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
             pathFunc = this.funcByUrl('post', msg.url);
             if (!pathFunc) return Promise.resolve(msg.setStatus(404, 'Not found'));
             return callMethodFunc(pathFunc, msg, context, config).then(msg => {
-                if (msg.data) msg.data.data = null;
+                if (msg.data) msg.data = undefined;
                 return msg;
             });
         }
@@ -72,7 +72,7 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
             pathFunc = this.funcByUrl('get', msg.url) || this.funcByUrl('all', msg.url);
             if (pathFunc) {
                 return callMethodFunc(pathFunc, msg, context, config).then(msg => {
-                    if (msg.data) msg.data.data = null;
+                    if (msg.data) msg.data = undefined;
                     return msg;
                 });
             } else {

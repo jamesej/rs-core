@@ -8,10 +8,10 @@ function queryString(args?: QueryStringArgs) {
 }
 
 function fullQueryString(args?: QueryStringArgs) {
-    return args ? "?" + queryString(args) : '';
+    return args && Object.values(args).length !== 0 ? "?" + queryString(args) : '';
 }
 
-export function resolvePathPattern(pathPattern: string, currentPath: string, basePath?: string, subPath?: string, query?: QueryStringArgs, name?: string) {
+function resolvePathPattern(pathPattern: string, currentPath: string, basePath?: string, subPath?: string, fullUrl?: string, query?: QueryStringArgs, name?: string) {
     if (!pathPattern) return '';
     const getParts = (path?: string) => slashTrim(path || '').split('/').filter(part => part !== '');
     const pathParts = getParts(currentPath);
@@ -44,6 +44,7 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
 
     const result = pathPattern
         .replace('$*', currentPath + fullQueryString(query))
+        .replace('$$', encodeURIComponent(fullUrl || ''))
         .replace('$P*', fullPathParts.join('/') + fullQueryString(query))
         .replace('$N*', name || '$N*')
         .replace(/\$([BSNP])?([<>]\d+)([<>]\d+)?(:\((.+?)\)|:\$([BSNP])?([<>]\d+)([<>]\d+)?)?/g, (_match, p1, p2, p3, p4, p5, p6, p7, p8) => {
@@ -51,7 +52,8 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
             if (partsMatch || !p4) return partsMatch;
             if (p4.startsWith(':(')) return p5;
             return getPartsMatch(p6, p7, p8);
-        }).replace(/\$\?(\*|\((.+?)\))/g, (_match, p1, p2) => {
+        })
+        .replace(/\$\?(\*|\((.+?)\))/g, (_match, p1, p2) => {
             if (p1 === '*') return queryString(query);
             return (query || {})[p2] === undefined ? '' : (query || {})[p2] || ''
         });
@@ -60,9 +62,9 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
 
 export function resolvePathPatternWithUrl(pathPattern: string, url: Url, obj?: object, name?: string) {
     if (obj) {
-        return resolvePathPatternWithObject(pathPattern, obj, [], url.servicePath, url.basePathElements.join('/'), url.subPathElements.join('/'), url.query, name);
+        return resolvePathPatternWithObject(pathPattern, obj, [], url.servicePath, url.basePathElements.join('/'), url.subPathElements.join('/'), url.toString(), url.query, name);
     } else {
-        return resolvePathPattern(pathPattern, url.servicePath, url.basePathElements.join('/'), url.subPathElements.join('/'), url.query, name);
+        return resolvePathPattern(pathPattern, url.servicePath, url.basePathElements.join('/'), url.subPathElements.join('/'), url.toString(), url.query, name);
     }
 }
 
@@ -103,9 +105,9 @@ function resolvePathPatternWithObjectInner(pathPattern: string, regex: RegExp, p
     }
 }
 
-export function resolvePathPatternWithObject(pathPattern: string, sourceObject: object, sourcePath: string[], currentPath: string, basePath?: string, subPath?: string, query?: QueryStringArgs, name?: string): string[] | string {
+export function resolvePathPatternWithObject(pathPattern: string, sourceObject: object, sourcePath: string[], currentPath: string, basePath?: string, subPath?: string, fullUrl?: string, query?: QueryStringArgs, name?: string): string[] | string {
     const regex = /\${([\w\[\].]*)}/g;
-    const partResolvedPattern = resolvePathPattern(pathPattern, currentPath, basePath, subPath, query, name);
+    const partResolvedPattern = resolvePathPattern(pathPattern, currentPath, basePath, subPath, fullUrl, query, name);
     const [ resolved, wasMultiplied ] = resolvePathPatternWithObjectInner(partResolvedPattern, regex, [ partResolvedPattern ], sourceObject, sourcePath);
     return wasMultiplied ? resolved : resolved[0];
 }
