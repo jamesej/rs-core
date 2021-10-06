@@ -7,7 +7,7 @@ export interface IManifest {
     // Url or relative file path to module's .ts file
     moduleUrl?: string;
     // JSON Schema for configuration
-    configSchema: Record<string, unknown>;
+    configSchema?: Record<string, unknown>;
     defaults?: Partial<IServiceConfig>;
 }
 
