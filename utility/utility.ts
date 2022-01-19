@@ -239,3 +239,76 @@ export const setProp = (obj: any, path: string[] | string, value: any): any => {
 };
 
 export const resolveIfPath = (urlPath: string) => urlPath.startsWith('.') ? path.resolve(urlPath) : urlPath;
+
+/** Starts scanning str at start to find the first match from searches. If multiple matches complete at the
+ * same position in str, it prefers the one which is listed first in searches.
+ */
+export const scanFirst = (str: string, start: number, searches: string[]): [string, number] => {
+    const matches: [number, number][] = [];
+    for (let idx = start; idx < str.length; idx++) {
+        for (let matchIdx = 0; matchIdx < matches.length; matchIdx++) {
+            const [ srchIdx, pos ] = matches[matchIdx]
+            if (searches[srchIdx][pos + 1] === str[idx]) {
+                matches[matchIdx][1]++;
+                if (pos + 2 === searches[srchIdx].length) {
+                    return [searches[srchIdx], idx + 1];
+                }
+            } else {
+                matches.splice(matchIdx, 1);
+                matchIdx--;
+            }
+        }
+
+        for (let srchIdx = 0; srchIdx < searches.length; srchIdx++) {
+            if (searches[srchIdx][0] === str[idx]) {
+                matches.push([srchIdx, 0]);
+                if (1 === searches[srchIdx].length) {
+                    return [searches[srchIdx], idx + 1];
+                }
+            }
+        }
+    }
+    return [ "", -1 ];
+}
+
+type QuoteChars = "'" | "\"" | "`"
+
+const scanCloseJsString = (str: string, start: number, quote: QuoteChars) => {
+    const escaped = "\\" + quote;
+    let [ match, pos] = [ escaped, start ];
+    while (match === escaped) {
+        [ match, pos ] = scanFirst(str, pos, [ escaped, quote ]);
+    }
+    return pos;
+}
+
+export const scanCloseJsBracket = (str: string, start: number, brackets: string) => {
+    let [ match, pos ] = [ "", start ];
+    const quotes = "'\"`";
+    while (match !== brackets[1] && pos > 0) {
+        [ match, pos ] = scanFirst(str, pos, [ brackets[0], brackets[1], ...quotes ]);
+        if (quotes.includes(match) && pos > 0) {
+            pos = scanCloseJsString(str, pos, match as QuoteChars);
+        } else if (match === brackets[0]) {
+            pos = scanCloseJsBracket(str, pos, brackets);
+        }
+    }
+    return pos;
+}
+
+export const skipWhitespace = (str: string, start: number) => {
+    let pos = start;
+    while (' \t\n\r\v'.indexOf(str[pos]) > -1 && pos < str.length) pos++;
+    return pos;
+}
+
+export const matchFirst = (str: string, start: number, matches: string[]): [ string, number ] => {
+    if (matches.length === 0) return [ "", -1 ];
+    const match = matches.find(m => str.startsWith(m, start));
+    return match ? [ match, start + match.length ] : [ "", -1 ];
+}
+
+export const upTo = (str: string, match: string, start?: number) => {
+    const pos = str.indexOf(match, start);
+    return pos < 0 ? str.substring(start || 0) : str.substring(start || 0, pos);
+}

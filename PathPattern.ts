@@ -11,7 +11,7 @@ function fullQueryString(args?: QueryStringArgs) {
     return args && Object.values(args).length !== 0 ? "?" + queryString(args) : '';
 }
 
-function resolvePathPattern(pathPattern: string, currentPath: string, basePath?: string, subPath?: string, fullUrl?: string, query?: QueryStringArgs, name?: string) {
+export function resolvePathPattern(pathPattern: string, currentPath: string, basePath?: string, subPath?: string, fullUrl?: string, query?: QueryStringArgs, name?: string) {
     if (!pathPattern) return '';
     const getParts = (path?: string) => slashTrim(path || '').split('/').filter(part => part !== '');
     const pathParts = getParts(currentPath);

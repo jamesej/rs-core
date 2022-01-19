@@ -67,7 +67,7 @@ export class Message {
     headers: { [key: string]: string | string[] } = {};
     context: { [key: string]: Record<string, unknown> } = {};
     depth = 0;
-    conditionalMode = false;
+    conditionalMode = false; // whether the msg might be representing an error in conditional mode i.e. status 200, error in body
     authenticated = false;
     originator = '';
     internalPrivilege = false;
@@ -151,7 +151,7 @@ export class Message {
         const msg = new Message(this.url.copy(), this.tenant, this.method, { ...this.headers }, this.data);
         msg.externalUrl = this.externalUrl ? this.externalUrl.copy() : null;
         msg.depth = this.depth;
-        msg.conditionalMode = false;
+        msg.conditionalMode = this.conditionalMode;
         msg.authenticated = this.authenticated;
         msg.internalPrivilege = this.internalPrivilege;
         msg.user = this.user;
@@ -161,7 +161,6 @@ export class Message {
     /** copies the messge's data, teeing it if it is a stream */
     copyWithData(): Message {
         const newMsg = this.copy();
-        newMsg.conditionalMode = this.conditionalMode;
         newMsg.data = this.data ? this.data.copy() : undefined;
         if (newMsg.data) this.uninitiatedDataCopies.push(newMsg.data);
         return newMsg;
