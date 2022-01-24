@@ -18,7 +18,7 @@ export interface IServiceManifest extends IManifest {
     prePipeline?: PipelineSpec;
     postPipeline?: PipelineSpec;
     exposedConfigProperties?: string[];
-    isFilter?: boolean;
+    isFilter?: boolean; // whether service passes unhandled message unchanged rather than returning 404
 }
 
 export interface IAdapterManifest extends IManifest {

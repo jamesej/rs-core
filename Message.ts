@@ -139,7 +139,12 @@ export class Message {
                 this.headers = headers;
             }
         }
-        const cookieStrings = ((this.headers['cookie'] as string) || '').split(';') ;
+        // handle forwards from reverse proxies which deal with https, we do the below
+        // to get back the original request url scheme
+        if (this.getHeader("x-forwarded-proto")) {
+            this.url.scheme = this.getHeader("x-forwarded-proto") + '://';
+        }
+        const cookieStrings = ((this.headers['cookie'] as string) || '').split(';');
         this.cookies = cookieStrings ? cookieStrings.reduce((res, cookieString) => {
             const parts = cookieString.trim().split('=');
             res[parts[0]] = parts[1];

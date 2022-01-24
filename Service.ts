@@ -60,7 +60,7 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
         let pathFunc = this.funcByUrl(method, msg.url);
         if (pathFunc) return callMethodFunc(pathFunc, msg, context, config);
         // default put is post with no returned body
-        if (method === 'put' && this.methodFuncs['post']) {
+        if (method === 'put' && this.methodFuncs['post'] && !context.manifest.isFilter) {
             pathFunc = this.funcByUrl('post', msg.url);
             if (!pathFunc) return Promise.resolve(msg.setStatus(404, 'Not found'));
             return callMethodFunc(pathFunc, msg, context, config).then(msg => {
