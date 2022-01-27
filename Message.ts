@@ -134,7 +134,7 @@ export class Message {
         this.data = data;
         if (headers) {
             if (headers instanceof Headers) {
-                for (let [key, val] of headers.entries()) this.headers[key] = val;
+                for (const [key, val] of headers.entries()) this.headers[key] = val;
             } else {
                 this.headers = headers;
             }
