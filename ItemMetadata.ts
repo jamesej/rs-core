@@ -6,7 +6,7 @@ export interface ItemNone {
 
 export interface ItemDirectory {
     status: "directory";
-    dateModified: Date;
+    dateModified?: Date;
 }
 
 export interface ItemFile {

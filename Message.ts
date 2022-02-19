@@ -8,6 +8,8 @@ import { ab2str, str2ab } from "./utility/arrayBufferUtility.ts";
 import { getProp } from "./utility/utility.ts";
 import { ServerRequest, Response as ServerResponse } from 'std/http/server.ts';
 import { IAuthUser } from "./user/IAuthUser.ts";
+import { AsyncQueue } from "./utility/asyncQueue.ts";
+import { ErrorObject, ValidateFunction } from "https://cdn.skypack.dev/ajv?dts";
 
 const sendHeaders: string[] = [
     "accept-ranges",
@@ -234,6 +236,18 @@ export class Message {
         delete this.headers[header.toLowerCase()];
     }
 
+    async getParam(name: string, urlPosition = -1): Promise<string | undefined> {
+        if (urlPosition > 0 && this.url.servicePathElements.length > urlPosition) {
+            return this.url.servicePathElements[urlPosition];
+        } else if (this.url.query[name]) {
+            return this.url.query[name] || undefined;
+        } if (this.data && isJson(this.data.mimeType)) {
+            const json = await this.data.asJson();
+            return json[name];
+        }
+        return undefined;
+    }
+
     setServiceRedirect(servicePath: string) {
         this.setHeader('X-Restspace-Service-Redirect', servicePath);
     }
@@ -429,6 +443,36 @@ export class Message {
         this.setStatus(isTemporary ? 302 : 301);
         this.setHeader('Location', url.toString());
         return this;
+    }
+
+    splitData(): AsyncQueue<Message> {
+        const datas = new AsyncQueue<Message>();
+        if (!this.data) {
+            datas.close();
+            return datas;
+        }
+        switch (this.data.mimeType) {
+            default: {
+                datas.enqueue(this);
+                datas.close();
+            }
+        }
+        return datas;
+    }
+
+    async validate(validator: ValidateFunction) {
+        if (!this.data || !isJson(this.data.mimeType)) {
+            validator.errors = [ {
+                keyword: "",
+                instancePath: "",
+                schemaPath: "",
+                params: {},
+                message: "The body was not JSON"
+            } as ErrorObject ];
+            return false;
+        }
+        const json = await this.data.asJson();
+        return validator(json);
     }
 
     toString() {

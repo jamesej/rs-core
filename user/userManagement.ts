@@ -11,7 +11,7 @@ export async function getUserFromEmail(context: SimpleServiceContext, userUrlPat
     const getUser = msg.copy().setMethod("GET").setUrl(userUrl);
 
     getUser.internalPrivilege = internalPrivilege;
-    const fullUserMsg = await context.makeRequest(getUser, Source.Internal);
+    const fullUserMsg = await context.makeRequest(getUser);
     getUser.internalPrivilege = false;
 
     const fullUser = fullUserMsg && fullUserMsg.data && fullUserMsg.ok ? (await fullUserMsg.data.asJson().catch(() => null)) : null;
@@ -23,8 +23,9 @@ export async function saveUser(context: SimpleServiceContext, userUrlPattern: st
     const putUser = msg.copy().setUrl(userUrl).setMethod('PUT').setDataJson(user);
 
     putUser.internalPrivilege = internalPrivilege;
-    const putUserMsg = await context.makeRequest(putUser, Source.Internal);
+    const putUserMsg = await context.makeRequest(putUser);
     putUser.internalPrivilege = false;
 
     return putUserMsg;
 }
+

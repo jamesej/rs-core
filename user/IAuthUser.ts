@@ -1,6 +1,6 @@
 export interface IAuthUser {
-    token: string;
-    tokenExpiry: Date;
+    token?: string;
+    tokenExpiry?: Date;
     email: string;
     originalEmail: string;
     roles: string;

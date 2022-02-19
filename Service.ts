@@ -7,11 +7,13 @@ import { Source } from "./Source.ts";
 import { Url } from "./Url.ts";
 import * as log from "std/log/mod.ts";
 import { IServiceManifest } from "./IManifest.ts";
+import Ajv, { ValidateFunction, Schema } from "https://cdn.skypack.dev/ajv?dts";
+import { getErrors } from "./utility/errors.ts";
 
 export interface SimpleServiceContext {
     tenant: string;
     prePost?: PrePost;
-    makeRequest: (msg: Message, source: Source) => Promise<Message>;
+    makeRequest: (msg: Message) => Promise<Message>;
     runPipeline: (msg: Message, pipelineSpec: PipelineSpec, contextUrl?: Url, concurrencyLimit?: number) => Promise<Message>;
     logger: log.Logger;
     manifest: IServiceManifest;
@@ -28,10 +30,13 @@ export enum AuthorizationType {
     none, read, write, create
 }
 
+const ajv = new Ajv({ allErrors: true, strictSchema: false, allowUnionTypes: true });
+
 export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServiceConfig = IServiceConfig> {
     static Identity = (new Service()).setMethodPath("all", "/", msg => Promise.resolve(msg));
     
     methodFuncs: { [ method: string ]: PathMap<ServiceFunction<TAdapter, TConfig>> } = {};
+    schemas: { [ method: string ]: PathMap<Schema> } = {};
 
     funcByUrl(method: string, url: Url) : [ string[], ServiceFunction<TAdapter, TConfig> ] | undefined {
         const pathMap = this.methodFuncs[method];
@@ -44,10 +49,10 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
 
     func: ServiceFunction<TAdapter, TConfig> = (msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => {
         const method = msg.method.toLowerCase();
-        const callMethodFunc = ([ matchPathElements, func ]: [ string[], ServiceFunction<TAdapter, TConfig> ],
+        const callMethodFunc = ([ matchPathElements, methodFunc ]: [ string[], ServiceFunction<TAdapter, TConfig> ],
             msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => {
             msg.url.basePathElements = msg.url.basePathElements.concat(matchPathElements);
-            return func(msg, context, config);
+            return methodFunc(msg, context, config);
         }
 
         if (method === 'options') return Promise.resolve(msg);
@@ -98,8 +103,23 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
         }
     }
 
-    setMethodPath(method: string, path: string, func: ServiceFunction<TAdapter, TConfig>) {
+    setMethodPath(method: string, path: string, func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) {
         if (!path.startsWith('/')) path = '/' + path;
+        if (schema) {  
+            const validator = ajv.compile(schema);
+            func = (msg, context, config) => {
+                if (!msg.validate(validator)) {
+                    return Promise.resolve(msg.setStatus(400, getErrors(validator)));
+                } else {
+                    return func(msg, context, config);
+                }
+            };
+            if (this.schemas[method]) {
+                this.schemas[method][path] = schema;
+            } else {
+                this.schemas[method] = { [path]: schema };
+            }
+        }
         if (this.methodFuncs[method]) {
             this.methodFuncs[method][path] = func;
         } else {
@@ -114,15 +134,15 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
 
     getDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('getDirectory', '/', func);
     
-    post = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('post', '/', func);
+    post = (func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) => this.setMethodPath('post', '/', func, schema);
 
-    postPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('post', path, func);
+    postPath = (path: string, func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) => this.setMethodPath('post', path, func, schema);
     
     postDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('postDirectory', '/', func);
 
-    put = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('put', '/', func);
+    put = (func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) => this.setMethodPath('put', '/', func, schema);
 
-    putPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('put', path, func);
+    putPath = (path: string, func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) => this.setMethodPath('put', path, func, schema);
 
     putDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('putDirectory', '/', func);
 
