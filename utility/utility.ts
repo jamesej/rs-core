@@ -312,3 +312,8 @@ export const upTo = (str: string, match: string, start?: number) => {
     const pos = str.indexOf(match, start);
     return pos < 0 ? str.substring(start || 0) : str.substring(start || 0, pos);
 }
+
+export const after = (str: string, match: string, start?: number) => {
+    const pos = str.indexOf(match, start);
+    return pos < 0 ? '' : str.substring(pos + match.length);
+}

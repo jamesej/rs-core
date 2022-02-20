@@ -107,11 +107,12 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
         if (!path.startsWith('/')) path = '/' + path;
         if (schema) {  
             const validator = ajv.compile(schema);
+            const innerFunc = func;
             func = (msg, context, config) => {
                 if (!msg.validate(validator)) {
                     return Promise.resolve(msg.setStatus(400, getErrors(validator)));
                 } else {
-                    return func(msg, context, config);
+                    return innerFunc(msg, context, config);
                 }
             };
             if (this.schemas[method]) {
