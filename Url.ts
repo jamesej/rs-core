@@ -1,7 +1,7 @@
 import { slashTrim, pathCombine, decodeURIComponentAndPlus, last, arrayEqual } from "./utility/utility.ts";
 import { resolvePathPatternWithUrl } from "./PathPattern.ts";
 
-export type QueryStringArgs = { [ key: string]: string | null };
+export type QueryStringArgs = Record<string, string[]>;
 
 /** Internal url class, note it does not accept relative urls (except site relative) as there is no context
  * for them
@@ -56,14 +56,18 @@ export class Url {
     query: QueryStringArgs = {};
 
     get queryString(): string {
-        return Object.entries(this.query).map(([key, val]) =>
-            val === null ? key : `${key}=${encodeURIComponent(val)}`
+        return Object.entries(this.query).flatMap(([key, vals]) =>
+            vals.map(val => `${key}=${encodeURIComponent(val)}`)
         ).join('&') || '';
     }
     set queryString(qs: string) {
         this.query = !qs ? {} : qs.split('&').filter(part => !!part).reduce((res, queryPart) => {
-            const keyValue = queryPart.split('=');
-            res[keyValue[0]] = keyValue.length > 1 ? decodeURIComponentAndPlus(keyValue[1]) : null;
+            const [ key, val ] = queryPart.split('=');
+            if (res[key]) {
+                if (val) res[key].push(decodeURIComponentAndPlus(val));
+            } else {
+                res[key] = val ? [ decodeURIComponentAndPlus(val) ] : [];
+            }
             return res;
         }, {} as QueryStringArgs);
     }

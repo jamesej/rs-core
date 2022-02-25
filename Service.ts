@@ -1,27 +1,11 @@
 import { IAdapter } from "./adapter/IAdapter.ts";
-import { IServiceConfig, PrePost } from "./IServiceConfig.ts";
+import { IServiceConfig } from "./IServiceConfig.ts";
 import { Message } from "./Message.ts";
 import { longestMatchingPath, PathMap } from "./PathMap.ts";
-import { PipelineSpec } from "./PipelineSpec.ts";
-import { Source } from "./Source.ts";
 import { Url } from "./Url.ts";
-import * as log from "std/log/mod.ts";
-import { IServiceManifest } from "./IManifest.ts";
-import Ajv, { ValidateFunction, Schema } from "https://cdn.skypack.dev/ajv?dts";
+import Ajv, { Schema } from "https://cdn.skypack.dev/ajv?dts";
 import { getErrors } from "./utility/errors.ts";
-
-export interface SimpleServiceContext {
-    tenant: string;
-    prePost?: PrePost;
-    makeRequest: (msg: Message) => Promise<Message>;
-    runPipeline: (msg: Message, pipelineSpec: PipelineSpec, contextUrl?: Url, concurrencyLimit?: number) => Promise<Message>;
-    logger: log.Logger;
-    manifest: IServiceManifest;
-}
-
-export interface ServiceContext<TAdapter extends IAdapter> extends SimpleServiceContext {
-    adapter: TAdapter;
-}
+import { ServiceContext } from "./ServiceContext.ts";
 
 export type ServiceFunction<TAdapter extends IAdapter = IAdapter, TConfig extends IServiceConfig = IServiceConfig> =
     (msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => Promise<Message>;

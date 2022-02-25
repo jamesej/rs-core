@@ -24,6 +24,10 @@ export class MessageBody {
         return this.statusCode === 0 || (200 <= this.statusCode) && (this.statusCode < 300);
     }
 
+    get isStream(): boolean {
+        return this.data instanceof ReadableStream;
+    }
+
     constructor(public data: ArrayBuffer | ReadableStream | null, public mimeType: string = "text/plain", size?: number, public dateModified?: Date, public filename?: string) {
     }
 

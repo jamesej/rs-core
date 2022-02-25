@@ -3,7 +3,7 @@ import { QueryStringArgs, Url } from "./Url.ts";
 
 function queryString(args?: QueryStringArgs) {
     return Object.entries((args || {}))
-        .map(([key, val]) => key + (val ? '=' + encodeURIComponent(val) : ''))
+        .flatMap(([key, vals]) => vals.map(val => key + (val ? '=' + encodeURIComponent(val) : '')))
         .join('&');
 }
 
@@ -55,7 +55,7 @@ export function resolvePathPattern(pathPattern: string, currentPath: string, bas
         })
         .replace(/\$\?(\*|\((.+?)\))/g, (_match, p1, p2) => {
             if (p1 === '*') return queryString(query);
-            return (query || {})[p2] === undefined ? '' : (query || {})[p2] || ''
+            return (query || {})[p2] === [] ? '' : (query || {})[p2].join(',') || ''
         });
     return result;
 }

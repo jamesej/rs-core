@@ -181,13 +181,18 @@ export class Message {
         return header.split('-').map(part => part.substr(0, 1).toUpperCase() + part.substr(1).toLowerCase()).join('-');
     }
 
-    private setHeaders(headers: Headers) {
-        Object.entries(this.headers)
+    private mapHeaders(msgHeaders: Record<string, string | string[]>, headers: Headers) {
+        Object.entries(msgHeaders)
             .flatMap(([k, vs]) => Array.isArray(vs) ? vs.map(v => [k, v]) : [[k, vs]]) // expand multiple identical headers
-            .filter(([k, v]) => sendHeaders.indexOf(k.toLowerCase()) >= 0
-                && (k.toLowerCase() !== 'content-disposition' || !v.startsWith('form-data')))
             .forEach(([k, v]) => headers.set(this.headerCase(k), v));
         return headers;
+    }
+
+    private responseHeadersOnly(headers: Record<string, string | string[]>) {
+        return Object.fromEntries(Object.entries(headers)
+            .filter(([k, v]) => sendHeaders.indexOf(k.toLowerCase()) >= 0
+                && (k.toLowerCase() !== 'content-disposition' || Array.isArray(v) || v.startsWith('form-data')))
+        );
     }
 
     toResponse() {
@@ -195,7 +200,7 @@ export class Message {
             {
                 status: this.status || 200
             });
-        this.setHeaders(res.headers);
+        this.mapHeaders(this.responseHeadersOnly(this.headers), res.headers);
         if (this.data) {
             res.headers.set('content-type', this.data.mimeType || 'text/plain');
             //if (this.data.size) res.setHeader('Content-Length', this.data.size.toString());
@@ -208,10 +213,19 @@ export class Message {
     toServerResponse() {
         const res: ServerResponse = {
             status: this.status || 200,
-            headers: this.setHeaders(new Headers()),
+            headers: this.mapHeaders(this.responseHeadersOnly(this.headers), new Headers()),
             body: this.data ? this.data.asServerResponseBody() : undefined
         }
         return res;
+    }
+
+    toRequest() {
+        const req = new Request(this.url.toString(), {
+            method: this.method,
+            headers: this.mapHeaders(this.headers, new Headers()),
+            body: this.data?.data || undefined,
+        });
+        return req;
     }
 
     setStatus(status: number, message?: string): Message {
@@ -236,7 +250,7 @@ export class Message {
         delete this.headers[header.toLowerCase()];
     }
 
-    async getParam(name: string, urlPosition = -1): Promise<string | undefined> {
+    async getParam(name: string, urlPosition = -1): Promise<any> {
         if (urlPosition > 0 && this.url.servicePathElements.length > urlPosition) {
             return this.url.servicePathElements[urlPosition];
         } else if (this.url.query[name]) {

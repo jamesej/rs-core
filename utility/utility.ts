@@ -317,3 +317,11 @@ export const after = (str: string, match: string, start?: number) => {
     const pos = str.indexOf(match, start);
     return pos < 0 ? '' : str.substring(pos + match.length);
 }
+
+export const applyOrMap = <T>(data: T | T[], func: (item: T) => T) => {
+    if (Array.isArray(data)) {
+        return data.map(func);
+    } else {
+        return func(data);
+    }
+}

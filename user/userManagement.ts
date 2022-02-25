@@ -1,7 +1,6 @@
 import { Message } from "../Message.ts";
 import { resolvePathPatternWithObject } from "../PathPattern.ts";
-import { SimpleServiceContext } from "../Service.ts";
-import { Source } from "../Source.ts";
+import { SimpleServiceContext } from "../ServiceContext.ts";
 import { IAuthUser } from "./IAuthUser.ts";
 
 export async function getUserFromEmail(context: SimpleServiceContext, userUrlPattern: string, msg: Message, email: string, internalPrivilege = false): Promise<IAuthUser | null> {
