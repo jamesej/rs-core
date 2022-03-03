@@ -5,7 +5,7 @@ import { resolvePathPatternWithUrl } from "./PathPattern.ts";
 import { isJson } from "./mimeType.ts";
 import parseRange from "https://cdn.skypack.dev/range-parser?dts";
 import { ab2str, str2ab } from "./utility/arrayBufferUtility.ts";
-import { getProp } from "./utility/utility.ts";
+import { after, getProp, upTo } from "./utility/utility.ts";
 import { ServerRequest, Response as ServerResponse } from 'std/http/server.ts';
 import { IAuthUser } from "./user/IAuthUser.ts";
 import { AsyncQueue } from "./utility/asyncQueue.ts";
@@ -23,11 +23,12 @@ const sendHeaders: string[] = [
     "content-disposition",
     "content-encoding",
     "content-language",
-    //"content-length", set automatically, breaks response if set
+    "content-length",
     "content-location",
     "content-md5",
     "content-range",
-    "content-security-policy", // content-type is set from mime-type
+    "content-security-policy",
+    "content-type",
     "date",
     "delta-base",
     "etag",
@@ -64,9 +65,22 @@ const sendHeaders: string[] = [
     "x-xss-protection"
 ];
 
+const headerDate = (d: Date) => {
+    const leadingZ = (n: number) => n.toString().padStart(2, '0');
+    const dayName = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ][d.getUTCDay()];
+    const day = leadingZ(d.getUTCDate());
+    const month = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec' ][d.getUTCMonth()];
+    const year = d.getUTCFullYear();
+    const hour = leadingZ(d.getUTCHours());
+    const minute = leadingZ(d.getUTCMinutes());
+    const second = leadingZ(d.getUTCSeconds());
+    return `${dayName}, ${day} ${month} ${year} ${hour}:${minute}:${second} GMT`;
+}
+
+export type MessageMethod = "" | "GET" | "PUT" | "POST" | "DELETE" | "PATCH" | "OPTIONS" | "HEAD";
+
 export class Message {
     cookies: { [key: string]: string } = {};
-    headers: { [key: string]: string | string[] } = {};
     context: { [key: string]: Record<string, unknown> } = {};
     depth = 0;
     conditionalMode = false; // whether the msg might be representing an error in conditional mode i.e. status 200, error in body
@@ -79,8 +93,30 @@ export class Message {
     protected _status = 0;
     protected _data?: MessageBody;
     protected uninitiatedDataCopies: MessageBody[] = [];
+    protected _headers: Record<string, string | string[]> = {};
     
     private static pullName = new RegExp(/([; ]name=["'])(.*?)(["'])/);
+
+    get headers(): Record<string, string | string[]> {
+        const headersOut = {
+            ...this._headers
+        };
+        // enforce that headers appropriate to the payload are used
+        headersOut['content-type'] = this.data?.mimeType || 'text/plain';
+        if (this.data?.size) {
+            headersOut['content-length'] = this.data.size.toString();
+        }
+        if (this.data?.filename) {
+            headersOut['content-disposition'] = `attachment; filename="${this.data.filename}"`;
+        }
+        if (this.data?.dateModified) {
+            headersOut['last-modified'] = headerDate(this.data.dateModified);
+        }
+        return headersOut;
+    }
+    set headers(val: Record<string, string | string[]>) {
+        this._headers = val;
+    }
 
     get data(): MessageBody | undefined {
         return this._data;
@@ -131,14 +167,29 @@ export class Message {
         return host || '';
     }
 
-    constructor(url: Url | string, public tenant: string, public method: string = "GET", headers?: Headers | { [key:string]: string | string[] }, data?: MessageBody) {
+    // private setMetadataFromHeaders(data: MessageBody) {
+    //     if (this._headers['content-type'] && !data.mimeType) {
+    //         data.setMimeType(this._headers['content-type'] as string);
+    //     }
+    //     if (this._headers['content-length'] && data.size === 0) {
+    //         data.size = parseInt(this._headers['content-length'] as string);
+    //     }
+    //     if (this._headers['last-modified'] && !data.dateModified) {
+    //         data.dateModified = new Date(this._headers['last-modified'] as string);
+    //     }
+    //     if (this._headers['content-disposition']?.includes('filename=') && !data.filename) {
+    //         data.filename = upTo(after(this._headers['content-disposition'] as string, `filename="`), '"');
+    //     }
+    // }
+
+    constructor(url: Url | string, public tenant: string, public method: MessageMethod = "GET", headers?: Headers | { [key:string]: string | string[] }, data?: MessageBody) {
         this.url = (typeof url === 'string') ? new Url(url) : url;
         this.data = data;
         if (headers) {
             if (headers instanceof Headers) {
-                for (const [key, val] of headers.entries()) this.headers[key] = val;
+                for (const [key, val] of headers.entries()) this._headers[key] = val;
             } else {
-                this.headers = headers;
+                this._headers = headers;
             }
         }
         // handle forwards from reverse proxies which deal with https, we do the below
@@ -146,6 +197,9 @@ export class Message {
         if (this.getHeader("x-forwarded-proto")) {
             this.url.scheme = this.getHeader("x-forwarded-proto") + '://';
         }
+        // fill missing info on body from headers
+        //if (data) this.setMetadataFromHeaders(data);
+
         const cookieStrings = ((this.headers['cookie'] as string) || '').split(';');
         this.cookies = cookieStrings ? cookieStrings.reduce((res, cookieString) => {
             const parts = cookieString.trim().split('=');
@@ -155,7 +209,7 @@ export class Message {
     }
 
     copy(): Message {
-        const msg = new Message(this.url.copy(), this.tenant, this.method, { ...this.headers }, this.data);
+        const msg = new Message(this.url.copy(), this.tenant, this.method, { ...this._headers }, this.data);
         msg.externalUrl = this.externalUrl ? this.externalUrl.copy() : null;
         msg.depth = this.depth;
         msg.conditionalMode = this.conditionalMode;
@@ -202,10 +256,8 @@ export class Message {
             });
         this.mapHeaders(this.responseHeadersOnly(this.headers), res.headers);
         if (this.data) {
-            res.headers.set('content-type', this.data.mimeType || 'text/plain');
+            res.headers.delete('content-length');
             //if (this.data.size) res.setHeader('Content-Length', this.data.size.toString());
-        } else {
-            res.headers.set('content-type', 'text/plain');
         }
         res.headers.set('X-Powered-By', 'Restspace');
         return res;
@@ -242,12 +294,12 @@ export class Message {
     }
 
     setHeader(header: string, value: string) {
-        this.headers[header.toLowerCase()] = value; 
+        this._headers[header.toLowerCase()] = value; 
         return this;
     }
 
     removeHeader(header: string) {
-        delete this.headers[header.toLowerCase()];
+        delete this._headers[header.toLowerCase()];
     }
 
     async getParam(name: string, urlPosition = -1): Promise<any> {
@@ -256,7 +308,7 @@ export class Message {
         } else if (this.url.query[name]) {
             return this.url.query[name] || undefined;
         } if (this.data && isJson(this.data.mimeType)) {
-            const json = await this.data.asJson();
+            const json = (await this.data.asJson()) || {};
             return json[name];
         }
         return undefined;
@@ -294,7 +346,7 @@ export class Message {
     setCookie(name: string, value: string, options: CookieOptions) {
         let currSetCookie: string[] = this.headers['set-cookie'] as string[] || [];
         currSetCookie = currSetCookie.filter((sc) => !sc.startsWith(name + '='));
-        this.headers['set-cookie'] = [ ...currSetCookie, `${name}=${encodeURIComponent(value)}${options}` ];
+        this._headers['set-cookie'] = [ ...currSetCookie, `${name}=${encodeURIComponent(value)}${options}` ];
         return this;
     }
 
@@ -342,7 +394,7 @@ export class Message {
         return this;
     }
 
-    setMethod(httpMethod: string) {
+    setMethod(httpMethod: MessageMethod) {
         this.method = httpMethod;
         return this;
     }
@@ -396,29 +448,13 @@ export class Message {
         return this;
     }
 
+
+
     async requestExternal(): Promise<Message> {
         let resp: Response;
 
-        const headers = new Headers();
-        for (const [key, val] of Object.entries(this.headers)) {
-            if (Array.isArray(val)) {
-                val.forEach(v => headers.set(key, v));
-            } else {
-                headers.set(key, val);
-            }
-        }
-        headers.set('content-type', this.data?.mimeType || 'text/plain');
-        if (this.data?.size) {
-            headers.set('content-length', this.data.size.toString());
-        }
-
         try {
-            const body = this.method !== 'GET' ? this.data?.data : null;
-            resp = await fetch(this.url.toString(), {
-                method: this.method,
-                headers,
-                body
-            });
+            resp = await fetch(this.toRequest());
         } catch (err) {
             console.error(`Request failed: ${err}`);
             return this.setStatus(500, 'request fail');
@@ -428,7 +464,7 @@ export class Message {
         return msgOut;
     }
 
-    async divertToSpec(spec: string | string[], defaultMethod?: string, effectiveUrl?: Url, inheritMethod?: string, headers?: object): Promise<Message | Message[]> {
+    async divertToSpec(spec: string | string[], defaultMethod?: MessageMethod, effectiveUrl?: Url, inheritMethod?: MessageMethod, headers?: object): Promise<Message | Message[]> {
         if (Array.isArray(spec)) {
             const unflatMsgs = await Promise.all(spec.flatMap(stg => this.divertToSpec(stg, defaultMethod, effectiveUrl, inheritMethod, headers)));
             return unflatMsgs.flat(1) as Message[];
@@ -443,7 +479,7 @@ export class Message {
         // TODO ensure data splitting works with streams
         (Array.isArray(msgs) ? msgs : [ msgs ]).forEach(msg => {
             msg.data = msg.data || this.data;
-            msg.headers = { ...this.headers };
+            msg._headers = { ...this._headers };
             msg.setStatus(this.status);
             msg.internalPrivilege = this.internalPrivilege;
             msg.depth = this.depth;
@@ -495,12 +531,12 @@ export class Message {
 
     static fromServerRequest(req: ServerRequest, tenant: string) {
         const url = new Url(req.url);
-        return new Message(url, tenant, req.method, req.headers, MessageBody.fromServerRequest(req) || undefined);
+        return new Message(url, tenant, req.method as MessageMethod, req.headers, MessageBody.fromServerRequest(req) || undefined);
     }
 
     static fromRequest(req: Request, tenant: string) {
         const url = new Url(req.url);
-        return new Message(url, tenant, req.method, req.headers, MessageBody.fromRequest(req) || undefined);
+        return new Message(url, tenant, req.method as MessageMethod, req.headers, MessageBody.fromRequest(req) || undefined);
     }
  
     static fromResponse(resp: Response, tenant: string) {
@@ -522,19 +558,19 @@ export class Message {
 
 
     /** A request spec is "[<method>] [<post data property>] <url>" */
-    static fromSpec(spec: string, tenant: string, referenceUrl?: Url, data?: any, defaultMethod?: string, name?: string, inheritMethod?: string, headers?: object) {
+    static fromSpec(spec: string, tenant: string, referenceUrl?: Url, data?: any, defaultMethod?: MessageMethod, name?: string, inheritMethod?: MessageMethod, headers?: object) {
         const parts = spec.trim().split(' ');
-        let method = defaultMethod || 'GET';
+        let method = defaultMethod || 'GET' as MessageMethod;
         let url = '';
         let postData: any = null;
         if (Message.isUrl(parts[0]) && !Message.isMethod(parts[0])) {
             url = spec;
         } else if (parts.length > 1 && Message.isUrl(parts[1]) && Message.isMethod(parts[0])) {
             // $METHOD indicates use the method inherited from an outer message
-            method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0];
+            method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0] as MessageMethod;
             url = parts.slice(1).join(' ');
         } else if (parts.length > 2 && Message.isUrl(parts[2]) && Message.isMethod(parts[0]) && data) {
-            method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0];
+            method = parts[0] === '$METHOD' ? (inheritMethod || method) : parts[0] as MessageMethod;
             const propertyPath = parts[1];
             if (propertyPath === '$this') {
                 postData = data;

@@ -29,6 +29,7 @@ export class MessageBody {
     }
 
     constructor(public data: ArrayBuffer | ReadableStream | null, public mimeType: string = "text/plain", size?: number, public dateModified?: Date, public filename?: string) {
+        this._size = size;
     }
 
     copy(): MessageBody {
@@ -36,7 +37,7 @@ export class MessageBody {
         if (this.data && this.data instanceof ReadableStream) {
             [ this.data, newData ] = this.data.tee();
         }
-        return new MessageBody(newData, this.mimeType, undefined, this.dateModified, this.filename);
+        return new MessageBody(newData, this.mimeType, this.size, this.dateModified, this.filename);
     }
 
     private convertFormData() {
@@ -54,9 +55,9 @@ export class MessageBody {
     }
 
     // MessageBody defers converting a stream to a ArrayBuffer until the last minute
-    private async ensureDataIsArrayBuffer() {
+    async ensureDataIsArrayBuffer() {
         if (!(this.data instanceof ArrayBuffer)) {
-            if (this.statusCode || !this.data) {
+            if (!this.data) {
                 const err = new Error('Resource does not exist') as any;
                 err['statusCode'] = this.statusCode;
                 throw err;

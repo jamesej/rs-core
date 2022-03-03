@@ -1,7 +1,14 @@
 import { extension, lookup } from "https://deno.land/x/media_types/mod.ts";
 
+const textTypes = [
+    "text/",
+    "application/javascript",
+    "application/xml",
+    "application/xhtml+xml"
+]
+
 export const isJson = (mimeType: string | null | undefined) => !!mimeType && (mimeType.indexOf("/json") > 0 ||  mimeType.indexOf("+json") > 0 || mimeType === 'inode/directory');
-export const isText = (mimeType: string | null | undefined) => !!mimeType && (mimeType.startsWith("text/") || mimeType === 'application/javascript');
+export const isText = (mimeType: string | null | undefined) => !!mimeType && textTypes.some(tt => mimeType.startsWith(tt));
 export const isZip = (mimeType: string | null | undefined) => !!mimeType && (mimeType.startsWith("application/") && mimeType.includes('zip'));
 const multiExtensions: { [ mimeType: string]: string[] } = {
     'image/jpeg': [ 'jpg', 'jpeg' ]

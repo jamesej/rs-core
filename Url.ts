@@ -55,9 +55,14 @@ export class Url {
 
     query: QueryStringArgs = {};
 
+    private encodeQueryValue(s: string) {
+        const enc = encodeURI(s);
+        return enc.replace('&', '%26').replace('=', '%3D').replace('#', '%23');
+    }
+
     get queryString(): string {
         return Object.entries(this.query).flatMap(([key, vals]) =>
-            vals.map(val => `${key}=${encodeURIComponent(val)}`)
+            vals.map(val => `${key}=${this.encodeQueryValue(val)}`)
         ).join('&') || '';
     }
     set queryString(qs: string) {

@@ -146,6 +146,12 @@ export function isObject(item: any) {
     return (item && typeof item === 'object' && !Array.isArray(item));
 }
 
+export function arrayify<T>(item: null | undefined | T | T[]) {
+    if (!item) return [] as T[];
+    if (!Array.isArray(item)) return [ item ];
+    return item;
+}
+
 //
 // like Object.assign only recursive/deep
 //
