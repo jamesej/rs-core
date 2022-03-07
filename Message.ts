@@ -208,8 +208,9 @@ export class Message {
         }, {} as { [ key: string]: string }) : {};
     }
 
-    copy(): Message {
-        const msg = new Message(this.url.copy(), this.tenant, this.method, { ...this._headers }, this.data);
+    copy(withData = true): Message {
+        const msg = new Message(this.url.copy(), this.tenant, this.method,
+            { ...this._headers }, withData ? this.data : undefined);
         msg.externalUrl = this.externalUrl ? this.externalUrl.copy() : null;
         msg.depth = this.depth;
         msg.conditionalMode = this.conditionalMode;
@@ -356,7 +357,11 @@ export class Message {
 
     private cancelOldStream() {
         if (this.data?.data instanceof ReadableStream) {
-            this.data.data.cancel('message body change'); // fire&forget promise
+            (async (rs: ReadableStream) => {
+                try {
+                    await rs.cancel('message body change'); // fire&forget promise
+                } catch {}
+            })(this.data.data);
         }
     }
 
