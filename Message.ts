@@ -387,10 +387,10 @@ export class Message {
         return this;
     }
 
-    setDataJson(value: any) {
+    setDataJson(value: any, mimeType?: string) {
         this._status = 0;
         this.conditionalMode = false;
-        return this.setData(JSON.stringify(value), 'application/json');
+        return this.setData(JSON.stringify(value), mimeType || 'application/json');
     }
 
     setDirectoryJson(value: any) {

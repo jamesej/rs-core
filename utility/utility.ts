@@ -152,6 +152,15 @@ export function arrayify<T>(item: null | undefined | T | T[]) {
     return item;
 }
 
+export function hex2array(hex: string) {
+    if (hex.length % 2 !== 0) throw new Error('hex string with uneven length');
+    const arr = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < hex.length / 2; i++) {
+        arr[i] = parseInt(hex.substring(i+i, i+i+2), 16);
+    }
+    return arr;
+}
+
 //
 // like Object.assign only recursive/deep
 //

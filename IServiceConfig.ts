@@ -53,8 +53,8 @@ export const schemaIServiceConfig = {
     "type": "object",
     "properties": {
         "name": { "type": "string" },
-        "source": { "type": "string" },
-        "basePath": { "type": "string" },
+        "source": { "type": "string", "description": "Url from which to request source code" },
+        "basePath": { "type": "string", "description": "Base path prefixing all paths used by the service" },
         "access": { "type": "object",
             "properties": {
                 "readRoles": { "type": "string" },
@@ -71,9 +71,9 @@ export const schemaIServiceConfig = {
                 "maxAge": { "type": "number" }
             }
         },
-        "adapterSource": { "type": "string"},
-        "infraName": { "type": "string" },
-        "adapterConfig": { "type": "object", "properties": {} }
+        "adapterSource": { "type": "string", "description": "Url from which to request adapter manifest" },
+        "infraName": { "type": "string", "description": "Infrastructure adapter to use instead of an adapter source" },
+        "adapterConfig": { "type": "object", "description": "Configuration for the adapter", "properties": {} }
     },
     "required": [ "name", "source", "basePath", "access" ]
 };

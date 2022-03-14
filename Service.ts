@@ -21,6 +21,7 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
     
     methodFuncs: { [ method: string ]: PathMap<ServiceFunction<TAdapter, TConfig>> } = {};
     schemas: { [ method: string ]: PathMap<Schema> } = {};
+    initFunc: (context: ServiceContext<TAdapter>, config: TConfig) => void = () => {};
 
     funcByUrl(method: string, url: Url) : [ string[], ServiceFunction<TAdapter, TConfig> ] | undefined {
         const pathMap = this.methodFuncs[method];
@@ -111,6 +112,10 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
             this.methodFuncs[method] = { [path]: func };
         }
         return this;
+    }
+
+    initializer(initFunc: (context: ServiceContext<TAdapter>, config: TConfig) => void) {
+        this.initFunc = initFunc;
     }
 
     get = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('get', '/', func);
