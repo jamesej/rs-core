@@ -93,9 +93,9 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
         if (schema) {  
             const validator = ajv.compile(schema);
             const innerFunc = func;
-            func = (msg, context, config) => {
-                if (!msg.validate(validator)) {
-                    return Promise.resolve(msg.setStatus(400, getErrors(validator)));
+            func = async (msg, context, config) => {
+                if (!(await msg.validate(validator))) {
+                    return msg.setStatus(400, getErrors(validator));
                 } else {
                     return innerFunc(msg, context, config);
                 }

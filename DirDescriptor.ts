@@ -4,7 +4,7 @@ export interface StoreDetails {
     storeMimeTypes: string[],
     createDirectory: boolean,
     createFiles: boolean,
-    singletonMimeTypes: string[]
+    exceptionMimeTypes?: Record<string, [ string, string ]>
 }
 
 export interface TransformDetails {

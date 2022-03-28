@@ -273,6 +273,9 @@ export class Message {
     }
 
     toRequest() {
+        if (this.data?.data instanceof ReadableStream) {
+            if (this.data.data.locked) throw new Error("Can't convert locked stream to request, will fail");
+        }
         const req = new Request(this.url.toString(), {
             method: this.method,
             headers: this.mapHeaders(this.headers, new Headers()),
