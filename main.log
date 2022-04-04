@@ -1,4 +1,0 @@
-ERROR Failed to load services for tenant basicChord: Error: failed to load manifest at C:\Dev\rs-core\test\TestConfigFileAdapter.ram.json: NotFound: The system cannot find the file specified. (os error 2)
-INFO Request (basicChord) PUT /files/abc.json
-ERROR Failed to load services for tenant basicChord: Error: failed to load manifest at C:\Dev\rs-core\test\TestConfigFileAdapter.ram.json: NotFound: The system cannot find the file specified. (os error 2)
-INFO Request (basicChord) PUT /files/abc.json
