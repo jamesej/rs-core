@@ -5,7 +5,8 @@ import { longestMatchingPath, PathMap } from "./PathMap.ts";
 import { Url } from "./Url.ts";
 import Ajv, { Schema } from "https://cdn.skypack.dev/ajv?dts";
 import { getErrors } from "./utility/errors.ts";
-import { ServiceContext } from "./ServiceContext.ts";
+import { ServiceContext, SimpleServiceContext } from "./ServiceContext.ts";
+import { PathInfo } from "./DirDescriptor.ts";
 
 export type ServiceFunction<TAdapter extends IAdapter = IAdapter, TConfig extends IServiceConfig = IServiceConfig> =
     (msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => Promise<Message>;
@@ -22,6 +23,14 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
     methodFuncs: { [ method: string ]: PathMap<ServiceFunction<TAdapter, TConfig>> } = {};
     schemas: { [ method: string ]: PathMap<Schema> } = {};
     initFunc: (context: ServiceContext<TAdapter>, config: TConfig) => void = () => {};
+    private _state: Record<string, any> = {};
+    state = <T>(cons: new () => T, context: SimpleServiceContext, config: TConfig) => {
+        const key = `${context.tenant}:${config.basePath}`;
+        if (this._state[key] === undefined) this._state[key] = new cons();
+        if (!(this._state[key] instanceof cons)) throw new Error('Changed type of state attached to service');
+        return this._state[key] as T;
+    }
+
 
     funcByUrl(method: string, url: Url) : [ string[], ServiceFunction<TAdapter, TConfig> ] | undefined {
         const pathMap = this.methodFuncs[method];
@@ -31,6 +40,19 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
         const matchPathElements = matchPath.split('/').filter(el => !!el);
         return [ matchPathElements, pathMap[matchPath] ];
     }
+
+    pathsAt(path: string) : PathInfo[] {
+        if (!path.startsWith('/')) path = '/' + path;
+        if (!path.endsWith('/')) path += '/';
+        const paths: Set<string> = new Set<string>();
+        Object.entries(this.methodFuncs)
+            .forEach(([method, pm]) =>
+                Object.keys(pm).filter(p => p.startsWith(path))
+                    .forEach(p => paths.add(p + (method.includes('Directory') ? '/' : '')))
+            );
+        return Array.from(paths.values()).map(p => [ p ] as PathInfo);
+    }
+
 
     func: ServiceFunction<TAdapter, TConfig> = (msg: Message, context: ServiceContext<TAdapter>, config: TConfig) => {
         const method = msg.method.toLowerCase();
@@ -123,6 +145,8 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
     getPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('get', path, func);
 
     getDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('getDirectory', '/', func);
+
+    getDirectoryPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('getDirectory', path, func);
     
     post = (func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) => this.setMethodPath('post', '/', func, schema);
 
@@ -130,17 +154,27 @@ export class Service<TAdapter extends IAdapter = IAdapter, TConfig extends IServ
     
     postDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('postDirectory', '/', func);
 
+    postDirectoryPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('postDirectory', path, func);
+
     put = (func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) => this.setMethodPath('put', '/', func, schema);
 
     putPath = (path: string, func: ServiceFunction<TAdapter, TConfig>, schema?: Schema) => this.setMethodPath('put', path, func, schema);
 
     putDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('putDirectory', '/', func);
 
+    putDirectoryPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('putDirectory', path, func);
+
     delete = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('delete', '/', func);
 
     deletePath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('delete', path, func);
 
     deleteDirectory = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('deleteDirectory', '/', func);
+
+    deleteDirectoryPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('deleteDirectory', path, func);
+
+    patch = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('patch', '/', func);
+
+    patchPath = (path: string, func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('patch', path, func);
 
     all = (func: ServiceFunction<TAdapter, TConfig>) => this.setMethodPath('all', '/', func);
 

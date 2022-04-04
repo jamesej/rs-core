@@ -158,9 +158,9 @@ export class Url {
         return newUrl;
     }
 
-    toString() {
+    toString(mode: "absolute path" | "absolute url" = "absolute url") {
         const host = `${this.scheme || ''}${this.domain || ''}`;
-        return `${this.isRelative ? '' : host}${this.path}${this.queryString ? '?' + this.queryString : ''}${this.fragment ? '#' + this.fragment : ''}`;
+        return `${this.isRelative || mode === "absolute path" ? '' : host}${this.path}${this.queryString ? '?' + this.queryString : ''}${this.fragment ? '#' + this.fragment : ''}`;
     }
 
     baseUrl() {

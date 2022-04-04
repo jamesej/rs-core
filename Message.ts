@@ -5,7 +5,7 @@ import { resolvePathPatternWithUrl } from "./PathPattern.ts";
 import { isJson } from "./mimeType.ts";
 import parseRange from "https://cdn.skypack.dev/range-parser?dts";
 import { ab2str, str2ab } from "./utility/arrayBufferUtility.ts";
-import { after, getProp, upTo } from "./utility/utility.ts";
+import { after, getProp, upTo, upToLast } from "./utility/utility.ts";
 import { ServerRequest, Response as ServerResponse } from 'std/http/server.ts';
 import { IAuthUser } from "./user/IAuthUser.ts";
 import { AsyncQueue } from "./utility/asyncQueue.ts";
@@ -90,6 +90,7 @@ export class Message {
     url: Url;
     externalUrl: Url | null = null;
     user: IAuthUser | null = null;
+    websocket: WebSocket | null = null;
     protected _status = 0;
     protected _data?: MessageBody;
     protected uninitiatedDataCopies: MessageBody[] = [];
@@ -102,7 +103,10 @@ export class Message {
             ...this._headers
         };
         // enforce that headers appropriate to the payload are used
-        headersOut['content-type'] = this.data?.mimeType || 'text/plain';
+        if (this.data?.mimeType) {
+            headersOut['content-type'] = this.data?.mimeType;
+        }
+        if (!headersOut['content-type']) headersOut['content-type'] = 'text/plain';
         if (this.data?.size) {
             headersOut['content-length'] = this.data.size.toString();
         }
@@ -248,6 +252,15 @@ export class Message {
             .filter(([k, v]) => sendHeaders.indexOf(k.toLowerCase()) >= 0
                 && (k.toLowerCase() !== 'content-disposition' || Array.isArray(v) || v.startsWith('form-data')))
         );
+    }
+
+    responsify() {
+        this.method = "";
+        this.status = this.status || 200;
+    }
+
+    requestify() {
+        this.status = 0;
     }
 
     toResponse() {
@@ -533,8 +546,35 @@ export class Message {
         return validator(json);
     }
 
+    /** Not proper HTTP/1.1 as body is always base 64 */
     toString() {
-        return `${this.method} ${this.url.toString()} ${this.status} ${this.hasData() ? this.data!.mimeType : "no data"}`;
+        const startLine = `${this.method} ${this.url.toString("absolute path")} HTTP/1.1`;
+        const headers = Object.entries(this.headers).flatMap(([name, vals]) =>
+            (Array.isArray(vals) ? vals : [ vals ]).map(val => `${name}: ${val}`));
+        const body = this.data ? this.data.asStringSync() : '';
+        return `${startLine}\r\n${headers.join("\r\n")}${body ? "\r\n\r\n" + body : ''}`;
+    }
+
+    async toUint8Array() {
+        let startLine: string;
+        if (this.method) {
+            startLine = `${this.method} ${this.url.toString("absolute path")} HTTP/1.1`;
+        } else {
+            startLine = `HTTP/1.1 ${this.status} ${this.ok || !this.hasData ? "" : await this.data!.asString()}`;
+        }
+        const headers = Object.entries(this.headers).flatMap(([name, vals]) =>
+            (Array.isArray(vals) ? vals : [ vals ]).map(val => `${name}: ${val}`));
+        const hasBody = !!this.data?.data;
+        const enc = new TextEncoder().encode(`${startLine}\r\n${headers.join("\r\n")}${hasBody ? "\r\n\r\n" : ""}`);
+        if (this.data?.data) {
+            const body = await this.data.asArrayBuffer();
+            const res = new Uint8Array(enc.byteLength + body!.byteLength);
+            res.set(enc, 0);
+            res.set(new Uint8Array(body!), enc.byteLength);
+            return res;
+        } else {
+            return enc;
+        }
     }
 
     static fromServerRequest(req: ServerRequest, tenant: string) {
@@ -553,6 +593,44 @@ export class Message {
                 ? new MessageBody(resp.body, resp.headers.get('content-type') || 'text/plain')
                 : undefined);
         msg.setStatus(resp.status);
+        return msg;
+    }
+
+    static fromUint8Array(arr: Uint8Array, tenant: string) {
+        const decoder = new TextDecoder();
+        const pullString = (arr: Uint8Array, start: number): [ string, number ] => {
+            let pos = start;
+            while (pos < arr.byteLength && (arr[pos] !== 13 && arr[pos] !== 10)) pos++;
+            return [pos < arr.byteLength ? decoder.decode(arr.subarray(start, pos)) : '', pos + 2];
+        };
+
+        let [line, pos] = pullString(arr, 0);
+        const initial = upTo(line, ' ');
+        let msg: Message;
+        if (initial === "HTTP/1.1") {
+            const lastPart = after(line, ' ');
+            const statusStr = upTo(lastPart, ' ');
+            const statusMsg = after(lastPart, ' ');
+            msg = new Message("/", tenant, "");
+            msg.setStatus(parseInt(statusStr), statusMsg || undefined);
+        } else {
+            const firstPart = upToLast(line, ' ');
+            const url = after(firstPart, ' ');
+            msg = new Message(url, tenant, initial as MessageMethod);
+        }
+        while (line) {
+            [line, pos] = pullString(arr, pos);
+            if (!line) break;
+            const headerParts = line.split(':');
+            msg.setHeader(headerParts[0].trim(), headerParts[1].trim());
+        }
+        if (pos < arr.byteLength - 1 && msg.method) {
+            const body = new Uint8Array(arr.subarray(pos)).buffer;
+            const contentType = msg.getHeader('content-type');
+            if (!contentType) throw new Error('Content-Type header not set');
+            msg.setData(body, contentType);
+        }
+
         return msg;
     }
 

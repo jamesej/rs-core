@@ -1,5 +1,9 @@
 export type PathMap<T> = { [ path: string ]: T };
 
+const pathMatch = (path: string, pattern: string): Record<string, string> | null => {
+    return null;
+}
+
 export function longestMatchingPath<T>(pathMap: PathMap<T>, path: string): string | undefined {
     let exactPath = '/' + path + '.';
     let item = pathMap[exactPath];
@@ -24,4 +28,4 @@ export function longestMatchingPath<T>(pathMap: PathMap<T>, path: string): strin
 export function getByPath<T>(pathMap: PathMap<T>, path: string) {
     const matchPath = longestMatchingPath(pathMap, path);
     return matchPath ? pathMap[matchPath] : undefined;
-};
+}
